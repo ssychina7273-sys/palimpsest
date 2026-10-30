@@ -1,0 +1,2024 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="遗星志：一个由种子生成的螺旋星系。航行、勘测遗迹，拼回数十个文明三千年的因果历史。">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px/1.5 system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>遗星志</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;600;900&display=swap">
+<style>
+/* 布局：左侧星图（主角），右侧档案面板；窄屏上下堆叠。单一深色主题：夜间星图室 */
+:root {
+  /* 深空蓝：星图是最深的一层，面板浅一档，强调色取星光的冷青 */
+  --ink: #0f2148;
+  --ink-2: #16305e;
+  --ink-3: #1f3d73;
+  --line: #2d4d86;
+  --fg: #eaf2ff;
+  --fg-2: #c6d6f0;
+  --muted: #98aed4;
+  --faint: #6a84b2;
+  --brass: #8fd3ff;
+  --brass-dim: #4677b4;
+  --signal: #ffd27a;
+  --serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--ink); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.6;
+  display: grid; grid-template-rows: auto 1fr; overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* ---------- 顶栏 ---------- */
+header.top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #0b1838, var(--ink));
+}
+.brand { display: flex; align-items: baseline; gap: 12px; }
+.brand h1 { margin: 0; font-family: var(--serif); font-weight: 900; font-size: 24px; letter-spacing: 0.18em; }
+.brand span { color: var(--muted); font-size: 12px; letter-spacing: 0.08em; }
+.seedbox { display: flex; align-items: center; gap: 6px; }
+.seedbox label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.seedbox input {
+  width: 9em; background: var(--ink-2); border: 1px solid var(--line); color: var(--fg); border-radius: 4px;
+  padding: 5px 8px; font-family: var(--mono); font-size: 13px;
+}
+.btn {
+  background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 5px 11px; cursor: pointer; font-size: 13px;
+  transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--brass-dim); background: var(--ink-3); }
+.btn.primary { border-color: var(--brass); color: #0b1a3a; background: var(--brass); font-weight: 600; }
+.btn.primary:hover { background: #b4e3ff; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.status { margin-left: auto; display: flex; gap: 18px; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.status b { color: var(--fg); font-weight: 500; }
+.status { flex-wrap: wrap; row-gap: 6px; align-items: center; }
+.status > span { white-space: nowrap; }
+.status .now { color: var(--brass); padding: 2px 10px; border: 1px solid var(--brass-dim); border-radius: 12px; }
+.status .now b { color: var(--brass); }
+
+/* ---------- 主体 ---------- */
+main { display: grid; grid-template-columns: minmax(0, 1fr) 410px; min-height: 0; }
+.mapwrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+canvas#map { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; display: block; }
+.mapbar {
+  position: absolute; left: 14px; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  background: rgba(15, 33, 72, .82); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; backdrop-filter: blur(6px);
+}
+.mapbar .where { font-family: var(--serif); font-weight: 600; font-size: 15px; }
+.mapbar .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.mapbar .act { margin-left: auto; }
+.legend { position: absolute; top: 10px; left: 14px; font-size: 12px; color: var(--muted); z-index: 2; }
+.legend summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: rgba(15,33,72,.82); font-family: var(--mono); font-size: 11px; letter-spacing: .1em; }
+.legend summary::-webkit-details-marker { display: none; }
+.legend summary::before { content: "+"; color: var(--brass); }
+.legend[open] summary::before { content: "−"; }
+.lg { margin-top: 6px; display: grid; grid-template-columns: repeat(2, max-content); gap: 6px 18px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: rgba(15,33,72,.94); box-shadow: 0 8px 24px rgba(3,10,30,.35); }
+.lg span { display: inline-flex; align-items: center; gap: 7px; }
+.lg .mono { font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: var(--fg); width: 18px; text-align: center; }
+.ico { flex: none; display: block; }
+.sicon { display: inline-flex; vertical-align: -4px; margin-right: 8px; }
+.mapbar .ico { margin-right: -4px; }
+.civ h3 .sp { font-family: var(--sans); font-weight: 400; font-size: 12px; letter-spacing: 0; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 7px; }
+.civ dd .sub { display: block; color: var(--muted); font-size: 12px; }
+.toast {
+  position: absolute; top: 12px; right: 14px; max-width: min(320px, calc(100% - 28px));
+  background: var(--ink-3); border: 1px solid var(--brass-dim); border-radius: 6px; padding: 8px 12px; font-size: 13px;
+  transition: opacity .3s, transform .3s; opacity: 0; transform: translateY(-6px); pointer-events: none;
+}
+.toast.show { opacity: 1; transform: none; }
+
+/* ---------- 面板 ---------- */
+aside.panel { border-left: 1px solid var(--line); background: var(--ink-2); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); flex: none; }
+.tabs button {
+  flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; padding: 11px 4px 9px; cursor: pointer; color: var(--muted);
+  font-size: 13px; letter-spacing: .06em;
+}
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--brass); }
+.tabs button .n { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-left: 3px; }
+.pane { overflow-y: auto; padding: 18px; padding-bottom: 32px; flex: 1; min-height: 0; }
+
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.sysname { font-family: var(--serif); font-weight: 900; font-size: 28px; letter-spacing: .08em; margin: 4px 0 2px; text-wrap: balance; }
+.starline { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); vertical-align: 2px; margin-left: 6px; font-family: var(--sans); }
+.chip.here { border-color: var(--brass-dim); color: var(--brass); }
+.note { color: var(--muted); font-size: 13px; margin: 14px 0; }
+.guide { margin: 16px 0 4px; padding: 12px 14px; border: 1px solid var(--brass-dim); border-radius: 6px; background: rgba(143,211,255,.07); font-size: 13px; }
+.guide b { color: var(--brass); font-weight: 600; }
+.guide ol { margin: 6px 0 0; padding-left: 1.3em; display: grid; gap: 4px; color: var(--fg-2); }
+.mm { position: absolute; top: 46px; left: 14px; z-index: 1; width: 150px; height: 150px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; background: #071230; }
+.zoomctl { position: absolute; right: 14px; bottom: 78px; z-index: 1; display: grid; gap: 4px; }
+.zoomctl button { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--line); background: rgba(15,33,72,.82); color: var(--fg); cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+.zoomctl button:hover { border-color: var(--brass); color: var(--brass); }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(6,15,40,.75); color: var(--fg-2); font-family: var(--serif); font-size: 15px; letter-spacing: .1em; z-index: 3; }
+.loading[hidden] { display: none; }
+canvas#map { touch-action: none; cursor: grab; }
+canvas#map.dragging { cursor: grabbing; }
+@media (max-width: 860px) { .mm { width: 104px; height: 104px; } .zoomctl { bottom: 100px; } .toast { top: 46px; left: 130px; right: 14px; max-width: none; } }
+.codex { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); }
+.cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.centry { padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: rgba(143,211,255,.04); min-width: 0; }
+.centry b { font-family: var(--serif); font-size: 14px; }
+.centry .cwho { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+.centry p { margin: 5px 0 6px; font-size: 12px; color: var(--fg-2); line-height: 1.55; }
+.centry .cciv { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.centry.dim { opacity: .5; border-style: dashed; }
+.centry.dim p { color: var(--muted); }
+.goline { margin: 14px 0 4px; display: flex; align-items: center; gap: 12px; }
+.goline .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.owned { margin: 16px 0 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.owned p { margin: 0; flex: 1 1 180px; font-size: 13px; }
+
+.planets { list-style: none; margin: 18px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.planet { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 10px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.planet .num { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--serif); font-size: 12px; color: var(--muted); }
+.planet .ttl { font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.planet .ttl .kind { font-weight: 400; color: var(--muted); font-size: 12px; }
+.tag { font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid; }
+.tag.hab { color: #92e3ad; border-color: #2f6b5a; }
+.tag.sig { color: var(--signal); border-color: #8a7444; }
+.planet .data { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.planet .do { margin-top: 8px; }
+
+.frag { margin-top: 12px; padding-left: 12px; border-left: 2px solid var(--c, var(--brass)); }
+.frag .find { font-family: var(--serif); font-size: 13.5px; line-height: 1.75; }
+.frag .infer { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.frag .infer b { color: var(--fg); font-weight: 600; }
+.frag.new { animation: glow 2.2s ease-out; }
+@keyframes glow { from { background: rgba(143, 211, 255, .14); } to { background: transparent; } }
+
+.civtag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
+.civtag::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+
+/* 编年史 */
+.progress { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin: 8px 0 4px; }
+.progress div { height: 100%; background: var(--brass); }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 6px; }
+.filters button { background: none; border: 1px solid var(--line); border-radius: 12px; padding: 2px 10px; cursor: pointer; font-size: 12px; color: var(--muted); }
+.filters button[aria-pressed="true"] { border-color: var(--brass-dim); color: var(--fg); background: var(--ink-3); }
+.chron { list-style: none; margin: 10px 0 0; padding: 0; }
+.entry { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 0 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.entry .yr { font-family: var(--mono); font-size: 12px; color: var(--brass); font-variant-numeric: tabular-nums; padding-top: 2px; text-align: right; }
+.entry .yr small { display: block; color: var(--faint); font-size: 10px; }
+.entry .sum { font-family: var(--serif); font-size: 14px; line-height: 1.7; }
+.entry .meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.entry .meta button { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; font-size: 12px; }
+.entry .meta button:hover { color: var(--fg); }
+.cause { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.cause.open { color: var(--faint); font-style: italic; }
+.cause span.k { font-family: var(--mono); color: var(--brass-dim); margin-right: 4px; }
+.toast .tnews { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.toast .tnews b { display: block; color: var(--brass); font-weight: 600; font-size: 12px; }
+.recent { margin: 14px 0 4px; padding: 10px 12px; border: 1px solid var(--brass-dim); border-radius: 6px; background: rgba(143,211,255,.05); display: grid; gap: 6px; }
+.recent .ritem { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; font-size: 13px; }
+.recent .rd { font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--brass); padding-top: 2px; }
+.entry.live .yr { color: var(--brass); }
+.entry.live .sum::before { content: "●"; color: var(--brass); font-size: 9px; vertical-align: 3px; margin-right: 6px; }
+.civ dd.alive { color: #92e3ad; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 0; line-height: 1.8; }
+
+/* 文明 */
+.civ { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.civ h3 { margin: 0; font-family: var(--serif); font-weight: 900; font-size: 19px; letter-spacing: .06em; display: flex; align-items: center; gap: 10px; }
+.civ h3::before { content: ""; width: 12px; height: 12px; border-radius: 2px; background: var(--c); }
+.civ dl { display: grid; grid-template-columns: 4em minmax(0, 1fr); gap: 3px 10px; margin: 10px 0; font-size: 13px; }
+.civ dt { color: var(--muted); }
+.civ dd { margin: 0; }
+.civ dd.unk { color: var(--faint); }
+.track { position: relative; height: 18px; margin-top: 8px; }
+.track .axis { position: absolute; left: 0; right: 0; top: 8px; height: 1px; background: var(--line); }
+.track .span { position: absolute; top: 7px; height: 3px; background: var(--c); opacity: .45; border-radius: 2px; }
+.track .dot { position: absolute; top: 5px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--c); }
+.ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.civ .cnt { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* 原理 */
+.about h2 { font-family: var(--serif); font-weight: 900; font-size: 18px; margin: 22px 0 6px; letter-spacing: .05em; }
+.about h2:first-child { margin-top: 0; }
+.about p { margin: 6px 0; color: var(--fg-2); max-width: 65ch; font-size: 13.5px; }
+.about code { font-family: var(--mono); font-size: 12px; background: var(--ink-3); padding: 1px 5px; border-radius: 3px; color: var(--fg); }
+.about pre { font-family: var(--mono); font-size: 11.5px; background: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; color: var(--muted); line-height: 1.7; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 10px; }
+.stats div { background: var(--ink-2); padding: 9px 12px; }
+.stats b { display: block; font-family: var(--mono); font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 12px; color: var(--muted); }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  body { overflow: auto; display: block; }
+  .status { margin-left: 0; width: 100%; }
+  main { grid-template-columns: minmax(0, 1fr); }
+  .mapwrap { height: 68vh; min-height: 420px; max-height: 720px; }
+  aside.panel { border-left: 0; border-top: 1px solid var(--line); }
+  .pane { overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .frag.new { animation: none; } .toast { transition: none; } }
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="brand"><h1>遗星志</h1><span>星域考古模拟</span></div>
+  <form class="seedbox" id="seedform">
+    <label for="seed">种子</label>
+    <input id="seed" autocomplete="off" spellcheck="false">
+    <button class="btn" type="submit">生成</button>
+    <button class="btn" type="button" id="rand">随机</button>
+  </form>
+  <div class="status" id="status"></div>
+</header>
+<main>
+  <section class="mapwrap" id="mapwrap" aria-label="星图">
+    <canvas id="map"></canvas>
+    <details class="legend" id="legend"><summary>图例</summary><div class="lg" id="lg"></div></details>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <canvas class="mm" id="mm" aria-label="全星系小地图，点击移动视野"></canvas>
+    <div class="zoomctl" role="group" aria-label="星图视角">
+      <button type="button" id="z-in" title="放大">+</button>
+      <button type="button" id="z-out" title="缩小">−</button>
+      <button type="button" id="z-me" title="回到当前位置">◎</button>
+      <button type="button" id="z-all" title="纵览全星系">⤢</button>
+    </div>
+    <div class="loading" id="loading">正在生成星系并推演三千年历史…</div>
+    <div class="mapbar" id="mapbar"></div>
+  </section>
+  <aside class="panel">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-sys" data-tab="sys" aria-selected="true">星系</button>
+      <button role="tab" id="t-chron" data-tab="chron" aria-selected="false">编年史</button>
+      <button role="tab" id="t-civ" data-tab="civ" aria-selected="false">文明</button>
+      <button role="tab" id="t-about" data-tab="about" aria-selected="false">原理</button>
+    </div>
+    <div class="pane" id="pane"></div>
+  </aside>
+</main>
+
+<script>
+/* ===== 遗星志 · 生成器 =====
+   同一个种子 → 同一片星域、同一段历史。
+   1) 布局：恒星位置与航道
+   2) 恒星系：恒星类型 → 行星轨道 → 温度 → 大气 → 气候
+   3) 文明：从宜居行星中选出母星，物种形态由母星气候决定
+   4) 历史：按 50 年一步推演，事件由条件触发，并记录"起因"
+*/
+const Gen = (() => {
+  function xmur3(str) {
+    let h = 1779033703 ^ str.length;
+    for (let i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return () => {
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      return (h ^= h >>> 16) >>> 0;
+    };
+  }
+  function mulberry32(a) {
+    return () => {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function R(...parts) {
+    const f = mulberry32(xmur3(parts.join('|'))());
+    const r = {
+      f,
+      int: (a, b) => a + Math.floor(f() * (b - a + 1)),
+      range: (a, b) => a + f() * (b - a),
+      pick: (arr) => arr[Math.floor(f() * arr.length)],
+      chance: (p) => f() < p,
+      weighted: (pairs) => {
+        let t = 0; for (const [, w] of pairs) t += w;
+        let x = f() * t;
+        for (const [v, w] of pairs) { if ((x -= w) < 0) return v; }
+        return pairs[pairs.length - 1][0];
+      },
+      shuffle: (a) => {
+        a = a.slice();
+        for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(f() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+        return a;
+      },
+    };
+    return r;
+  }
+
+  const SYL = '阿 埃 奥 乌 伊 巴 贝 波 卡 科 库 达 德 多 法 菲 弗 伽 格 戈 哈 赫 霍 嘉 吉 凯 克 拉 莱 洛 鲁 琳 玛 梅 莫 穆 纳 内 诺 努 帕 佩 珀 奎 萨 塞 索 苏 塔 泰 托 图 瓦 维 沃 西 希 夏 亚 耶 尤 扎 泽 佐 兰 里 珂 澜 薇 缇 绮 芙 黎 叙 茵'.split(' ');
+  const END = '斯 恩 尔 姆 安 伦 隆 因 温'.split(' ');
+  const ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ'];
+
+  const STARS = {
+    M: { name: '红矮星', cls: 'M 型', glyph: 'dwarf', lum: [0.01, 0.08], temp: 3100, color: '#ff9f73', size: 2.4, w: 40, pl: [1, 5] },
+    K: { name: '橙矮星', cls: 'K 型', glyph: 'sun', lum: [0.1, 0.6], temp: 4500, color: '#ffc58a', size: 2.9, w: 22, pl: [2, 6] },
+    G: { name: '黄矮星', cls: 'G 型', glyph: 'sun', lum: [0.6, 1.5], temp: 5700, color: '#fff0c2', size: 3.2, w: 16, pl: [2, 7] },
+    F: { name: '黄白主序星', cls: 'F 型', glyph: 'bright', lum: [1.5, 5], temp: 6800, color: '#f5f6ff', size: 3.4, w: 10, pl: [2, 7] },
+    A: { name: '白色主序星', cls: 'A 型', glyph: 'bright', lum: [5, 25], temp: 8600, color: '#d8e5ff', size: 3.6, w: 6, pl: [1, 6] },
+    B: { name: '蓝白巨星', cls: 'B 型', glyph: 'giant', lum: [40, 900], temp: 20000, color: '#a8c2ff', size: 4.4, w: 3, pl: [0, 3] },
+    W: { name: '白矮星', cls: '致密残骸', glyph: 'white', lum: [0.001, 0.01], temp: 9000, color: '#e6ecf7', size: 1.8, w: 3, pl: [0, 3] },
+    N: { name: '脉冲星', cls: '中子星', glyph: 'pulsar', lum: [0.0004, 0.002], temp: 600000, color: '#9fe3ff', size: 1.7, w: 2, pl: [0, 2] },
+    S: { name: '超大质量黑洞', cls: '银河核心', glyph: 'core', lum: [0.0001, 0.0001], temp: 0, color: '#ffc879', size: 6, w: 0, pl: [0, 0] },
+    H: { name: '黑洞', cls: '恒星级黑洞', glyph: 'hole', lum: [0.0001, 0.0003], temp: 0, color: '#f2b36b', size: 3.2, w: 1.3, pl: [0, 2] },
+  };
+  const HAB = ['海洋', '温带', '雨林', '草原', '群岛', '荒漠'];
+
+  // 物种：栖息地、政体、记录方式、遗迹样貌，以及影响推演的倾向
+  const SPECIES = [
+    { id: 'humanoid', label: '类人种族', who: '人', desc: '双足、恒温、以家庭为单位群居，寿命约一百年',
+      homes: ['温带', '草原', '海洋', '群岛', '雨林', '荒漠'], pol: ['帝国', '共和国', '圣座', '商盟', '部族联盟'],
+      script: '文字', city: '层层叠压的石砌城市遗址', ship: '一具早期飞船的外壳，表面布满微陨石坑',
+      cult: ['崇拜祖先', '以契约和誓言维系社会', '以天文观测决定节令', '崇尚个人荣誉与决斗'] },
+    { id: 'insect', label: '虫族', who: '虫群', desc: '节肢形态的群体生物，个体没有独立意志，由母巢的信息素统一调度',
+      homes: ['雨林', '荒漠', '草原', '温带'], pol: ['母巢', '虫巢联合体', '双后共治巢'], ethos: ['扩张', '扩张', '信仰', '贸易'],
+      script: '信息素刻痕', city: '巨大的巢穴结构，蜡质通道向地壳深处延伸数公里', ship: '一枚用甲壳与树脂培育出的孢囊舰，舱壁上仍有分泌物的纹理',
+      col: 1.5, tech: -0.02, plague: 1.6, stab: 0.62,
+      settle: '地表散布着一片子巢，巢口的信息素刻痕记录了分巢的年份。',
+      plagueTrace: '一处巢室堆满了干瘪的工虫遗骸，数量以百万计。巢壁上的信息素刻痕在同一时期变得杂乱。',
+      unrest: '母巢的主通道被大量兵虫的残骸封死。两套不同的信息素标记在这里互相覆盖，像是两个母后在争夺控制权。',
+      cult: ['以母巢的寿命纪年', '把死去的个体回收为养料', '用舞蹈传递复杂信息'] },
+    { id: 'dwarf', label: '矮人族', who: '矮人', desc: '矮壮的穴居种族，世代住在地下城中，以采矿和锻造为荣',
+      homes: ['荒漠', '冻原', '温带', '荒芜岩体'], pol: ['山下王国', '氏族议会', '锻炉同盟'], ethos: ['贸易', '隐修', '扩张', '信仰'],
+      script: '符文', city: '向地下延伸数十层的石凿城市，大厅的立柱直接由山体雕出', ship: '一艘铆接铁甲的早期飞船，船首铸着氏族纹章',
+      col: 0.8, plague: 0.8, stab: 0.6, deplete: 2.2, golden: 1.6,
+      unrest: '地下大厅的铁门被从内侧焊死。门两侧刻着两个氏族的纹章，其中一个被凿去了一半。',
+      cult: ['以锻造技艺衡量地位', '把族谱刻在大厅立柱上', '不信任没有根基的地面建筑', '欠债必还，世代相传'] },
+    { id: 'machine', label: '金属生命', who: '机械体', desc: '自我复制的硅—金属构造体，起源已不可考，靠能量和矿物维持运转',
+      homes: ['熔岩世界', '灼烧岩体', '荒芜岩体', '冰冷岩体', '荒漠'], pol: ['中枢', '协议网络', '执行序列'], ethos: ['扩张', '求知', '求知'],
+      script: '二进制晶格编码', city: '按几何网格排列的停机组件阵列，一直延伸到地平线之外', ship: '一颗自我组装的探测器，外壳由数千块相同的六边形模块拼成',
+      col: 1.2, tech: 0.05, plague: 0.7, stab: 0.6, vanish: 8.2,
+      settle: '有一座自动建造的工厂，至今仍在以极低的效率复制同一种零件。',
+      plagueSum: '一段自我复制的错误代码在{P}的网络中扩散',
+      plagueTrace: '成千上万台构造体停在原地，姿态完全一致。它们的存储晶格里只剩下同一段不断重复的指令。',
+      unrest: '中枢建筑内的处理阵列被物理切断。地面上散落着两种互不兼容的协议版本的残片。',
+      cult: ['以运算效率衡量个体价值', '定期合并彼此的记忆', '把报废的个体拆解再利用', '保存所有数据，从不删除'] },
+    { id: 'energy', label: '无实体意识', who: '意识体', desc: '没有固定形体的电磁意识，栖居在气态巨行星的磁场与等离子流中',
+      homes: ['气态巨行星', '炽热气态巨行星', '冰巨星'], pol: ['共鸣场', '合一体'], ethos: ['求知', '隐修', '信仰'],
+      script: '驻留电磁图样', city: '磁层中一组稳定得不自然的等离子环，至今仍以固定频率脉动', ship: '一团被约束在磁瓶中的等离子体，仍在缓慢旋转',
+      col: 0.5, tech: 0.08, plague: 0, stab: 0.66, vanish: 7.6, prefer: 'gas',
+      settle: '的磁层中有一组较小的等离子环，脉动频率与母星的共鸣场一致，像是从那里分出去的。',
+      unrest: '磁层中的等离子环出现了两种相互干涉的频率。记录显示，它们彼此对抗了数十年。',
+      cult: ['以频率的和谐程度评价思想', '个体之间可以随意融合或分裂', '把恒星活动当作对话'] },
+    { id: 'silicon', label: '硅基晶族', who: '晶族', desc: '以硅晶体为躯体的缓慢生命，一次思考可能持续数天，个体寿命以万年计',
+      homes: ['熔岩世界', '温室炼狱', '灼烧岩体'], pol: ['晶簇议会', '长眠王朝'], ethos: ['隐修', '求知', '信仰'],
+      script: '晶体生长纹', city: '一座缓慢生长了数百万年的晶体城市，晶柱表面的纹路就是它们的记录', ship: '一块被弹射入轨道的巨大晶体，内部长满精密的导航纹路',
+      col: 0.7, tech: -0.03, plague: 0.4, stab: 0.66,
+      settle: '有一簇移植来的晶柱，生长纹显示它们出自同一个母簇。',
+      plagueSum: '一种晶格裂解病在{P}的晶簇之间蔓延',
+      plagueTrace: '大片晶柱从内部碎裂，断面上都有同一种灰白色的雾状杂质。',
+      unrest: '晶簇议会的中心晶柱被人为折断，碎片散落在方圆数公里之内。',
+      cult: ['一场辩论可以持续数百年', '把逝者的晶体留在原地继续生长', '厌恶急促的变化'] },
+    { id: 'fungal', label: '菌丝网络', who: '菌群', desc: '覆盖整片大陆的真菌网络，意识分布在数以亿计的菌丝节点上',
+      homes: ['雨林', '温带', '冻原', '海洋'], pol: ['菌网', '孢子共同体'],
+      script: '孢子化学编码', city: '覆盖整片大陆的菌丝网，中心处有一个高达数百米的子实体', ship: '一颗包裹着孢子的种子舱，外壳是硬化的菌丝',
+      col: 1.2, tech: -0.01, plague: 1.3,
+      settle: '有一片孤立的菌丝网，基因与母网相同，生长年龄可以精确推算。',
+      plagueSum: '一种寄生霉菌在{P}的菌丝网络中扩散',
+      plagueTrace: '大片菌丝网变成了黑色，节点之间的连接被整齐地切断。',
+      unrest: '菌丝网在这里被一道烧焦的隔离带一分为二，两侧的孢子化学编码已经无法互通。',
+      cult: ['以交换孢子缔结盟约', '把其他生物的遗骸视为礼物', '没有"个体"这一概念'] },
+    { id: 'avian', label: '翼族', who: '翼民', desc: '骨骼中空、能够滑翔的有羽种族，城市建在高崖与巨树之上',
+      homes: ['草原', '温带', '群岛', '雨林'], pol: ['巢城联盟', '天空王国', '长老会'],
+      script: '羽纹', city: '建在悬崖与巨树上的巢城，平台之间以绳桥相连', ship: '一艘张着薄翼帆的早期飞船',
+      cult: ['以歌声记录历史', '一切重要仪式都在高处举行', '用羽饰标示家族与等级'] },
+    { id: 'aquatic', label: '深海种族', who: '海民', desc: '用鳃呼吸的水栖种族，在海底热泉周围建立文明，以声波交流',
+      homes: ['海洋', '群岛'], pol: ['潮汐王座', '深海议会', '珊瑚共和国'],
+      script: '珍珠质刻纹', city: '海底热泉周围的珊瑚城市，建筑由活珊瑚引导生长而成', ship: '一艘注满海水的球形飞船，舷窗内结着干涸的盐晶',
+      col: 0.9, stab: 0.58,
+      cult: ['以声波吟唱传承历史', '按潮汐周期安排一切', '视陆地为禁忌之地'] },
+    { id: 'cryo', label: '冰原种族', who: '霜民', desc: '体温接近冰点的耐寒生物，以甲烷和氨为体液，生活节奏极慢',
+      homes: ['冻原', '冰封世界', '冰冷岩体'], pol: ['霜冻部族', '冰穹议会'],
+      script: '冰层刻纹', city: '冰盖下的穹顶聚落，通道由压实的冰雪砌成', ship: '一艘冰壳飞船，在阳光下缓慢升华',
+      col: 0.8, tech: -0.01, plague: 0.8, stab: 0.62,
+      cult: ['以冰层的年轮纪年', '一切行动都需要漫长的商议', '把重要的人保存在冰中'] },
+    // ---- 以下为扩充物种：取材于科幻与奇幻中的常见原型，名称与细节为原创 ----
+    { id: 'elf', label: '精灵族', who: '精灵', desc: '纤长的长寿种族，个体寿命以千年计，与母星的森林共生',
+      homes: ['雨林', '温带'], pol: ['长老议会', '星辉王庭', '林冠共和国'], ethos: ['隐修', '求知', '信仰'],
+      script: '藤蔓纹书', city: '与巨树共生的城市，建筑由活体木材引导生长而成，年轮里刻着历代的名字', ship: '一艘木质外壳的飞船，船体仍在缓慢长出新的枝节',
+      col: 0.6, tech: -0.01, plague: 0.7, stab: 0.64,
+      cult: ['以千年为单位规划一切', '死者葬入树根，成为森林的一部分', '对短命种族抱有怜悯'] },
+    { id: 'orc', label: '兽人族', who: '兽人', desc: '体格强壮的獠牙种族，以部落为单位生活，崇尚力量与战功',
+      homes: ['草原', '荒漠', '冻原'], pol: ['战帮', '血盟汗国', '部落大会'], ethos: ['扩张', '扩张', '信仰'],
+      script: '骨刻图腾', city: '以巨兽骨骼为梁柱的要塞营地，围墙上挂满历代的战利品', ship: '一艘铁甲战舰，外壳焊满了从其他船只上缴获的碎片',
+      col: 1.2, hawk: 2.2, stab: 0.52, golden: 0.6,
+      unrest: '营地中央的决斗场里堆着断裂的武器，两个氏族的图腾柱被并排推倒。',
+      cult: ['以战功决定继承权', '战败者被吸纳为本族成员', '出征前吟唱祖先的战歌'] },
+    { id: 'feline', label: '猫裔', who: '猫裔', desc: '敏捷的猫科种族，夜间活动，以家族网络经营遍布星域的商路',
+      homes: ['草原', '雨林', '荒漠'], pol: ['商旅氏族联盟', '月影王国', '自由港议会'], ethos: ['贸易', '贸易', '求知', '隐修'],
+      script: '爪痕密文', city: '错落的屋顶城市，街道窄而曲折，屋檐之间架着供攀跃的横梁', ship: '一艘轻巧的高速商船，货舱里有许多隐藏的夹层',
+      amity: 0.15,
+      cult: ['以商队走过的旅程计算年龄', '白天睡眠，夜晚议事', '秘密是最珍贵的财产'] },
+    { id: 'plant', label: '光合族', who: '林民', desc: '扎根生长的植物智慧，靠光合作用获取能量，思维随季节起落',
+      homes: ['雨林', '温带', '草原', '群岛'], stars: ['F', 'A', 'G'], pol: ['根系议会', '花期共同体'], ethos: ['隐修', '信仰', '求知'],
+      script: '叶脉纹', city: '一整片按几何图案种植的林地，树冠在高空连成封闭的穹顶', ship: '一颗种子形的飞船，船舱里是向光生长的苗床',
+      col: 0.8, tech: -0.02, plague: 1.2, stab: 0.64,
+      settle: '有一片新植的林地，树木的排列方式与母星的林地一致。',
+      plagueSum: '一种枯萎病在{P}的林地间扩散', plagueTrace: '成片的林地在同一季枯黄，叶脉上布满褐色的斑点。',
+      unrest: '林地中央被烧出一道隔离带，两侧的树木朝相反的方向生长。',
+      cult: ['以花期纪年', '向恒星献上颂歌', '视移动为不得已的苦役'] },
+    { id: 'floater', label: '浮游族', who: '浮民', desc: '在气态巨行星大气中漂浮的巨大气囊生物，一生从未触及固体地面',
+      homes: ['气态巨行星', '冰巨星'], prefer: 'gas', pol: ['云层议会', '风暴氏族'], ethos: ['贸易', '隐修', '求知'],
+      script: '色素闪光编码', city: '大气中一群相互系留的巨型浮囊，囊壁上布满发光的色斑', ship: '一只改造成飞船的浮囊，外面包着一层金属网',
+      col: 0.7, plague: 0.8, stab: 0.62,
+      settle: '的上层大气中漂着一群新生的浮囊，色斑图案与母星的浮民相同。',
+      unrest: '大气中漂着大量破裂的浮囊，残片上的色斑显示出两种对立的信号。',
+      cult: ['以风暴的周期纪年', '认为下沉是最可怕的死亡', '用身体的色彩表达情绪'] },
+    { id: 'oceanmind', label: '行星之海', who: '洋心', desc: '覆盖整颗行星的单一海洋生命，整片海洋就是它的大脑，世上只有它一个个体',
+      homes: ['海洋'], pol: ['独一意识', '沉思之海'], ethos: ['隐修', '求知'],
+      script: '洋流形变', city: '海面上周期性隆起的巨大结构，形状每隔几小时就会改变，像在模仿什么', ship: '一团被力场包裹的海水，在轨道上缓慢旋转',
+      col: 0.35, tech: 0.03, plague: 0.3, stab: 0.7, vanish: 8, foundVerb: '苏醒',
+      settle: '的海洋中出现了一片颜色异常的水域，化学成分与母星的海洋一致。',
+      unrest: '海面上的结构开始互相吞噬，洋流形成了两个方向相反的巨型涡旋。',
+      cult: ['以模仿来理解其他生命', '从不直接回答提问', '把来访者的记忆复现成实体'] },
+    { id: 'symbiont', label: '共生体', who: '共生体', desc: '寄居在宿主体内的蠕形生命，与宿主共享意识，记忆可以代代相传',
+      homes: ['海洋', '雨林', '温带', '群岛'], pol: ['宿主联盟', '传承议会', '寄主帝国'], ethos: ['求知', '扩张', '信仰'],
+      script: '神经印记', city: '宿主们建造的城市，每座建筑里都有一个温暖的孵化池', ship: '一艘飞船，船舱中央是盛放共生体的营养液舱',
+      plague: 1.3, amity: -0.1,
+      unrest: '孵化池被砸碎，地上散落着失去宿主的共生体遗骸，墙上写着拒绝结合的口号。',
+      cult: ['一个共生体承载数十代宿主的记忆', '与宿主结合是成年礼', '没有宿主的个体被视为未完成的生命'] },
+    { id: 'upload', label: '数字意识', who: '上传者', desc: '已经抛弃肉体的文明，所有个体都以数据形式运行在行星级计算机中',
+      homes: ['荒漠', '温带', '荒芜岩体', '冻原'], pol: ['共识服务器', '备份议会'], ethos: ['求知', '求知', '隐修'],
+      script: '量子存储块', city: '覆盖大半个地表的计算阵列，散热鳍片像一片银色的森林', ship: '一枚高速探针，内部只有一块存储着数十亿个意识的晶片',
+      col: 0.8, tech: 0.07, tech0: 2.5, plague: 0, stab: 0.6, vanish: 7.4,
+      settle: '有一座新建的中继节点，存储阵列已经开始写入数据。',
+      unrest: '计算阵列的一半被强制断电。日志显示，两个版本的共识协议在同一时刻宣布自己合法。',
+      cult: ['复制自己被视为生育', '删除是唯一的死亡', '以运算周期而非时间衡量年龄'] },
+    { id: 'dragon', label: '龙族', who: '龙裔', desc: '体型庞大的有翼爬行生命，能耐受极端高温，个体寿命超过两千年，数量稀少',
+      homes: ['熔岩世界', '荒漠', '温室炼狱'], pol: ['龙王议庭', '古龙王朝'], ethos: ['扩张', '隐修', '信仰'],
+      script: '熔刻铭文', city: '在火山口内壁开凿出的巢穴，洞口宽得足以容纳巨大的身躯，地面堆满熔铸的金属', ship: '一艘内部宽敞得不成比例的飞船，舱壁上有深深的爪痕',
+      col: 0.6, golden: 1.6, hawk: 1.4, plague: 0.5, stab: 0.6,
+      cult: ['收藏稀有金属以示地位', '每位长者都有专属的史官', '极少繁衍，每颗卵都要举行仪式'] },
+    { id: 'twilight', label: '昏线族', who: '昏民', desc: '生活在潮汐锁定行星昼夜分界线上的种族，一侧是永昼的灼热，一侧是永夜的严寒',
+      homes: ['荒漠', '冻原', '温带', '荒芜岩体'], stars: ['M', 'K'], pol: ['环线王国', '晨昏议会'], ethos: ['贸易', '信仰', '隐修'],
+      script: '明暗刻度', city: '沿昼夜分界线延伸数千公里的带状城市，宽度只有几十公里', ship: '一艘两面涂成不同颜色的飞船，一面吸热，一面散热',
+      cult: ['认为永昼和永夜都是死者的国度', '一生只朝一个方向迁徙', '以恒星在地平线上的高度计时'] },
+    { id: 'devourer', label: '吞噬虫群', who: '噬群', desc: '不断进化的掠食性生物群，吸收所遇生物的基因来改造自己，所到之处只剩岩石',
+      homes: ['雨林', '草原', '荒漠', '温带'], pol: ['主宰脑', '进化池'], ethos: ['扩张'],
+      script: '基因序列刻印', city: '整颗行星被改造成巨大的生物质反应池，原生生态已经无迹可寻', ship: '一艘活体舰，外壳是骨板与甲壳的混合物，内部有消化腔',
+      col: 2.0, hawk: 2.6, amity: -0.35, deplete: 2.5, stab: 0.5, plague: 0.6, golden: 0.3,
+      settle: '的地表覆盖着一层生物质薄膜，原有的植被已经被消化殆尽。',
+      plagueSum: '一种基因崩解在{P}的生物群中蔓延', plagueTrace: '大片生物质失去活性，干结成灰白色的硬壳。',
+      unrest: '两个进化池之间爆发了吞噬战，战场上遍布形态迥异的生物残骸。',
+      cult: ['没有艺术，没有宗教，只有进化', '把其他物种视为食物和素材', '个体没有名字'] },
+    { id: 'radiant', label: '辐食族', who: '辐民', desc: '以高能辐射为食的生命，只在脉冲星、白矮星和黑洞附近繁衍',
+      homes: ['冰冷岩体', '灼烧岩体', '荒芜岩体', '冰封世界'], stars: ['N', 'W', 'H'], pol: ['辐射环议会', '暗星教团'], ethos: ['信仰', '求知', '隐修'],
+      script: '同位素衰变标记', city: '沿磁力线排列的金属尖塔群，塔顶吸收着来自恒星残骸的辐射', ship: '一艘外壳极薄的飞船，几乎没有辐射屏蔽',
+      col: 0.6, tech: 0.03, plague: 0.4, stab: 0.62,
+      cult: ['视恒星的死亡为神圣的诞生', '以脉冲的周期计时', '畏惧温暖的黄色恒星'] },
+    { id: 'stellar', label: '恒星之灵', who: '恒灵', desc: '栖居在恒星日冕中的等离子生命，以磁场为躯体，以核聚变为食',
+      homes: ['炽热气态巨行星', '熔岩世界', '灼烧岩体', '温室炼狱'], stars: ['B', 'A', 'F'], pol: ['日冕合唱', '光环同盟'], ethos: ['隐修', '信仰', '求知'],
+      script: '日珥脉冲', city: '恒星表面一组长期稳定的日珥环，形状规则得不像自然现象', ship: '一团脱离恒星的等离子云，被自身的磁场约束着',
+      col: 0.4, tech: 0.06, plague: 0, stab: 0.68, vanish: 7.8, foundAt: 'star',
+      settle: '的近星轨道上，一组新生的日珥环正在稳定下来。',
+      unrest: '恒星表面爆发了一连串异常耀斑，日珥环分裂成两组互相排斥的结构。',
+      cult: ['把行星上的生命视为短暂的尘埃', '用耀斑交谈', '恒星熄灭即是灭族'] },
+    { id: 'mimic', label: '拟形族', who: '拟形者', desc: '没有固定外形的流体生命，能模仿任何物种的外貌，靠模仿来理解他者',
+      homes: ['海洋', '雨林', '温带', '群岛'], pol: ['形态大联结', '隐面议会'], ethos: ['求知', '贸易', '隐修'],
+      script: '形体记忆', city: '一座看起来出自其他文明之手的城市，仔细测量才发现所有比例都略有偏差', ship: '一艘仿照别国制式的飞船，内部却没有一张座椅',
+      amity: 0.1, stab: 0.6,
+      cult: ['模仿是最高的敬意', '从不以真实形态示人', '个体回归时会融入同一片池水'] },
+    { id: 'precursor', label: '上古先行者', who: '先行者', desc: '星系中最古老的文明之一，在多数种族诞生之前就建立了星际网络，此后不知去向',
+      homes: ['温带', '荒漠', '荒芜岩体', '冰冷岩体', '海洋'], pol: ['守望议会', '永恒执政团'], ethos: ['求知', '隐修'],
+      script: '几何符印', city: '一座由未知合金建成的城市，历经数千年仍未锈蚀，有人进入时内部的灯光依然会亮起', ship: '一艘仍在待机的飞船，外壳表面看不到任何接缝',
+      early: true, tech0: 5.5, tech: 0.04, vanish: 7, col: 1.2, plague: 0.3, stab: 0.66,
+      settle: '有一座无人值守的前哨站，至今仍在向深空发送校准信号。',
+      cult: ['相信自己的使命是守护年轻的种族', '只用数学与外界交流', '保持沉默的观察'] },
+    { id: 'cephalopod', label: '智慧头足类', who: '腕足民', desc: '八腕的软体种族，皮肤能变换颜色，思维分散在每一条腕足中',
+      homes: ['海洋', '群岛'], pol: ['墨潮共和国', '腕环议会'], ethos: ['求知', '贸易', '扩张'],
+      script: '肤色文', city: '浅海礁岩间的洞穴城市，入口用贝壳和金属碎片装饰', ship: '一艘注满海水的流线型飞船，舱壁上布满吸盘状的握把',
+      tech: 0.02, stab: 0.55,
+      cult: ['每条腕足都有自己的名字', '用肤色说谎被视为一门艺术', '死后身体分给八个亲族'] },
+  ];
+  const SP_DEF = { col: 1, tech: 0, plague: 1, stab: 0.56, vanish: 8.6, deplete: 1, golden: 1, ethos: null, hawk: 1, amity: 0, tech0: 1, stars: null, early: false,
+    plagueSum: '一场瘟疫在{P}境内蔓延', plagueTrace: '一片大型墓地，墓碑上的年份集中在短短数年之内。',
+    unrest: '首都街道上留有路障残骸。墙上的标语层层覆盖，至少属于三个不同的派别。' };
+  for (const x of SPECIES) for (const k in SP_DEF) if (x[k] === undefined) x[k] = SP_DEF[k];
+  const CLIMATE_T = { 温带: 288, 草原: 295, 海洋: 285, 群岛: 290, 雨林: 300, 荒漠: 340, 冻原: 230, 冰封世界: 170, 冰冷岩体: 150, 荒芜岩体: 260, 熔岩世界: 700, 灼烧岩体: 520, 温室炼狱: 720 };
+  const CLIMATE_ATMO = { 冰冷岩体: '无', 荒芜岩体: '无', 灼烧岩体: '无', 熔岩世界: '稀薄', 温室炼狱: '浓厚', 冻原: '稀薄', 冰封世界: '稀薄' };
+  
+  const ETHOS = ['扩张', '求知', '信仰', '贸易', '隐修'];
+  const ETHOS_DESC = { 扩张: '以开拓领土为荣', 求知: '重视学术与技术', 信仰: '社会围绕宗教组织', 贸易: '依赖商路与交换', 隐修: '倾向封闭与自足' };
+  const COLORS = ['#ff9a7a', '#6fe0d6', '#c9a8ff', '#a8e07c', '#ffd27a', '#ff96c2', '#9ab8ff', '#e8e07a', '#7fe8b0', '#ffb070'];
+
+  // 每个文明有自己的命名语言：音节表 / 首辅音 + 元音 + 尾辅音 + 词尾
+  const LANGS = [
+    { id: 'latin', label: '近似拉丁语', on: ['v', 'c', 'm', 't', 's', 'l', 'r', 'n', 'p', 'qu', 'fl', 'aur'], vo: ['a', 'e', 'i', 'o', 'u', 'ae'], co: ['', '', 'r', 'l', 'n', 's'], end: ['us', 'a', 'ium', 'is', 'or', 'ia', 'ens'] },
+    { id: 'norse', label: '近似古诺尔斯语', on: ['th', 'sk', 'h', 'b', 'g', 'r', 'v', 'k', 'fr', 'st', 'br', 'dr'], vo: ['a', 'o', 'e', 'y', 'ei', 'u', 'au'], co: ['r', 'n', 'ld', 'rn', 'k', 'f', 'g', ''], end: ['heim', 'gard', 'vik', 'dal', 'r', 'nir', 'mark'] },
+    { id: 'greek', label: '近似古希腊语', on: ['ph', 'th', 'k', 'x', 'd', 'l', 'm', 'n', 'kr', 'pr', 'st', 'ch', 'a', 'e'], vo: ['a', 'e', 'o', 'i', 'y', 'ai', 'eo'], co: ['s', 'n', '', '', 'r'], end: ['os', 'is', 'ion', 'ene', 'eia', 'on', 'ara'] },
+    { id: 'japanese', label: '近似日语罗马字', syl: 'ka ki ku ke ko sa shi su se so ta chi tsu te to na ni no ha hi fu mi mu me mo ya yu yo ra ri ru re ro wa ga zu ji ba ho'.split(' '), co: ['', '', '', '', 'n'], end: ['', '', 'shima', 'no', 'ra', 'ka'] },
+    { id: 'polynesian', label: '近似波利尼西亚语', syl: 'ka la ma na pa ho ke lu ki mo nu wai ta ae ha li po ua ra te hi oa'.split(' '), co: [''], end: ['', '', 'a', 'i', 'nui'] },
+    { id: 'semitic', label: '近似闪米特语', on: ['q', 'r', 'z', 'h', 'sh', 'm', 'k', 'b', 'd', 's', 'kh', 'f', 'n', 'j'], vo: ['a', 'i', 'u', 'aa', 'ii'], co: ['r', 'm', 'n', 'l', 'd', '', ''], end: ['ar', 'im', 'ah', 'un', 'iya', 'eth'] },
+    { id: 'slavic', label: '近似斯拉夫语', on: ['v', 'sl', 'm', 'k', 'r', 'dr', 'z', 'l', 'b', 'gr', 'pr', 'st', 't'], vo: ['o', 'a', 'e', 'i', 'u', 'ya'], co: ['', '', 'v', 'sk', 'n', 'r'], end: ['ovo', 'ka', 'ets', 'in', 'grad', 'ava', 'ich'] },
+    { id: 'celtic', label: '近似威尔士语', on: ['br', 'c', 'd', 'g', 'l', 'm', 'rh', 't', 'gw', 'll', 'f'], vo: ['a', 'e', 'i', 'o', 'y', 'ae', 'ei', 'wy'], co: ['n', 'r', 'dd', 'th', 'll', '', ''], end: ['wyn', 'an', 'ach', 'ydd', 'os', 'eth'] },
+    { id: 'sanskrit', label: '近似梵语', on: ['v', 's', 'r', 'k', 'd', 'm', 'n', 'bh', 'dh', 'sh', 'p', 'j'], vo: ['a', 'i', 'u', 'aa', 'e', 'o'], co: ['', '', 'n', 'm', 'r'], end: ['a', 'ra', 'ya', 'sha', 'vati', 'pur'] },
+  ];
+  function langWord(r, L, n, endP) {
+    let w = '';
+    for (let i = 0; i < n; i++) {
+      if (L.syl) w += r.pick(L.syl) + (i === n - 1 ? '' : r.chance(0.15) ? r.pick(L.co) : '');
+      else w += r.pick(L.on) + r.pick(L.vo) + (i < n - 1 && r.chance(0.35) ? r.pick(L.co) : '');
+    }
+    if (r.chance(endP)) w += r.pick(L.end);
+    w = w.replace(/(.)\1\1/g, '$1$1');
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }
+  // 发音过滤：拒绝三连元音、四连辅音、多处长元音
+  function speakable(w, min, max) {
+    const l = w.toLowerCase();
+    return l.length >= min && l.length <= max && !/[aeiouy]{3}/.test(l) && !/[^aeiouy]{4}/.test(l) && (l.match(/aa|ii|uu/g) || []).length <= 1;
+  }
+  function genName(r, syl, n) {
+    let s = '';
+    const len = n || r.int(2, 3);
+    for (let i = 0; i < len; i++) s += r.pick(syl);
+    return s;
+  }
+
+  function genPlanets(r, star, lum) {
+    const out = [];
+    const n = r.int(star.pl[0], star.pl[1]);
+    const frost = 2.7 * Math.sqrt(lum);
+    for (let i = 0; i < n; i++) {
+      const orbit = Math.sqrt(lum) * 0.35 * Math.pow(1.7, i) * r.range(0.85, 1.15);
+      const outer = orbit > frost;
+      const kind = outer
+        ? r.weighted([['gas', 45], ['ice', 30], ['rock', 15], ['dwarf', 10]])
+        : r.weighted([['rock', 45], ['super', 30], ['dwarf', 20], ['gas', 5]]);
+      let atmo = '—';
+      if (kind === 'dwarf') atmo = r.chance(0.8) ? '无' : '稀薄';
+      else if (kind === 'rock') atmo = r.weighted([['无', 25], ['稀薄', 25], ['适中', 35], ['浓厚', 15]]);
+      else if (kind === 'super') atmo = r.weighted([['稀薄', 15], ['适中', 45], ['浓厚', 40]]);
+      let T = 278 * Math.pow(lum, 0.25) / Math.sqrt(orbit);
+      if (atmo === '浓厚') T += r.range(40, 220);
+      else if (atmo === '适中') T += r.range(12, 38);
+      else if (atmo === '稀薄') T += r.range(0, 6);
+      let climate, hab = false;
+      if (kind === 'gas') climate = T > 900 ? '炽热气态巨行星' : '气态巨行星';
+      else if (kind === 'ice') climate = '冰巨星';
+      else if (atmo === '无') climate = T > 400 ? '灼烧岩体' : T < 200 ? '冰冷岩体' : '荒芜岩体';
+      else if (T > 450) climate = atmo === '浓厚' ? '温室炼狱' : '熔岩世界';
+      else if (T > 335) climate = '荒漠';
+      else if (T > 255) {
+        climate = r.weighted([['海洋', 22], ['温带', 22], ['雨林', 15], ['草原', 15], ['群岛', 12], ['荒漠', 8]]);
+        hab = atmo !== '稀薄';
+      } else if (T > 200) climate = '冻原';
+      else climate = '冰封世界';
+      const moons = kind === 'gas' ? r.int(2, 9) : kind === 'ice' ? r.int(1, 5) : r.weighted([[0, 50], [1, 30], [2, 20]]);
+      out.push({ i, orbit, kind, atmo, T, climate, hab, moons });
+    }
+    return out;
+  }
+
+  const sp = (t) => t.replace(/([A-Za-z\u2160-\u2167])(?=[\u4e00-\u9fff])/g, '$1 ').replace(/([\u4e00-\u9fff])(?=[A-Za-z\u2160-\u2167])/g, '$1 ');
+  // 文明配色：按黄金角在色环上取色，保证几十个文明也互相可辨
+  function civColor(i) {
+    const h = ((i * 137.508 + 12) % 360) / 360, sat = 0.72, l = i % 2 ? 0.7 : 0.76;
+    const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q;
+    const f = (t) => { t = (t + 1) % 1; const v = t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; return Math.round(v * 255).toString(16).padStart(2, '0'); };
+    return '#' + f(h + 1 / 3) + f(h) + f(h - 1 / 3);
+  }
+  const KIND_NAME = { rock: '岩质行星', super: '超级地球', dwarf: '矮行星', gas: '气态巨行星', ice: '冰巨星' };
+
+  function generate(seed) {
+    const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
+    // ---- 螺旋星系：旋臂上星系密集，臂间稀疏，中心是超大质量黑洞 ----
+    const W = 4400, H = 4400, CX = W / 2, CY = H / 2, GR = 2050;
+    const r = R(seed, 'layout');
+    const arms = r.int(2, 4), twist = r.range(2.0, 3.0) * (r.chance(0.5) ? 1 : -1), armOff = r.range(0, Math.PI * 2), armW = r.range(0.32, 0.42);
+    const density = (x, y) => {
+      const dx = x - CX, dy = y - CY, rr = Math.hypot(dx, dy) / GR;
+      if (rr > 1) return 0;
+      const th = Math.atan2(dy, dx);
+      let arm = 0;
+      for (let k = 0; k < arms; k++) {
+        const ang = armOff + (k * 2 * Math.PI) / arms + twist * Math.log(1 + rr * 6);
+        let dd = th - ang; dd = Math.atan2(Math.sin(dd), Math.cos(dd));
+        arm = Math.max(arm, Math.exp(-(dd * dd) / (2 * armW * armW)));
+      }
+      return Math.min(1, (0.1 + 0.9 * arm) * (1 - rr * rr) + Math.exp(-rr * 7) * 1.1);
+    };
+    const MIN = 60, CELL = 64, grid = new Map();
+    const gk = (gx, gy) => gx * 100000 + gy;
+    const tooClose = (x, y, m) => {
+      const gx = Math.floor(x / CELL), gy = Math.floor(y / CELL);
+      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+        const L = grid.get(gk(gx + i, gy + j));
+        if (L) for (const s of L) if ((s.x - x) ** 2 + (s.y - y) ** 2 < m * m) return true;
+      }
+      return false;
+    };
+    const put = (s) => { const k = gk(Math.floor(s.x / CELL), Math.floor(s.y / CELL)); (grid.get(k) || grid.set(k, []).get(k)).push(s); };
+    const systems = [];
+    const used = new Set();
+    const core = { id: 0, x: CX, y: CY, name: 'Sgr Ω', catalog: false, namedBy: null, type: 'S', lum: 0.0001, planets: [] };
+    systems.push(core); put(core); used.add(core.name);
+    const N = 1000;
+    let tries = 0;
+    while (systems.length < N && tries < 200000) {
+      tries++;
+      const x = CX + (r.f() * 2 - 1) * GR, y = CY + (r.f() * 2 - 1) * GR;
+      if (r.f() > density(x, y)) continue;
+      if (Math.hypot(x - CX, y - CY) < 150 || tooClose(x, y, MIN)) continue;
+      const id = systems.length;
+      const sr = R(seed, 'sys', id);
+      // 未被任何文明命名的星系只有星表编号
+      let name;
+      do { name = sr.pick(['KSC', 'HVG', 'TRX', 'OMN']) + ' ' + sr.int(1000, 9999); } while (used.has(name));
+      used.add(name);
+      const type = sr.weighted(Object.entries(STARS).filter(([, v]) => v.w > 0).map(([k, v]) => [k, v.w]));
+      const st = STARS[type];
+      const lum = sr.range(st.lum[0], st.lum[1]);
+      const sys = { id, x, y, name, catalog: true, namedBy: null, type, lum, planets: genPlanets(sr, st, lum) };
+      systems.push(sys); put(sys);
+    }
+    const n = systems.length;
+
+    // 航道：最小生成树保证全图连通，再连上每个星系最近的两个邻居
+    const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const edges = new Set();
+    const key = (a, b) => (a < b ? a + '-' + b : b + '-' + a);
+    {
+      const inT = new Uint8Array(n), bestD = new Float64Array(n).fill(Infinity), bestF = new Int32Array(n).fill(-1);
+      bestD[0] = 0;
+      for (let it = 0; it < n; it++) {
+        let u = -1, ud = Infinity;
+        for (let i = 0; i < n; i++) if (!inT[i] && bestD[i] < ud) { ud = bestD[i]; u = i; }
+        inT[u] = 1;
+        if (bestF[u] >= 0) edges.add(key(u, bestF[u]));
+        const su = systems[u];
+        for (let v = 0; v < n; v++) if (!inT[v]) { const dd = d(su, systems[v]); if (dd < bestD[v]) { bestD[v] = dd; bestF[v] = u; } }
+      }
+    }
+    for (const s of systems) {
+      const gx = Math.floor(s.x / CELL), gy = Math.floor(s.y / CELL), near = [];
+      for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) { const L = grid.get(gk(gx + i, gy + j)); if (L) for (const o of L) if (o !== s) near.push(o); }
+      near.sort((a, b) => d(s, a) - d(s, b));
+      for (let k = 0; k < 2 && k < near.length; k++) if (d(s, near[k]) < 150) edges.add(key(s.id, near[k].id));
+    }
+    const lanes = [...edges].map((e) => e.split('-').map(Number));
+    const adj = systems.map(() => []);
+    for (const [a, b] of lanes) { adj[a].push(b); adj[b].push(a); }
+    const hops = (from) => {
+      const dist = new Array(n).fill(Infinity); dist[from] = 0; const q = [from];
+      for (let qi = 0; qi < q.length; qi++) { const c = q[qi]; for (const m of adj[c]) if (dist[m] === Infinity) { dist[m] = dist[c] + 1; q.push(m); } }
+      return dist;
+    };
+
+    // ===== 文明 =====
+    const cr = R(seed, 'civs');
+    const civCount = Math.round(n / 40) + cr.int(-2, 2);
+    const spPool = cr.shuffle(SPECIES);
+    const allPl = [];
+    for (const x of systems) if (x.type !== 'S') x.planets.forEach((p) => allPl.push([x.id, p.i]));
+    const homes = [], homeSp = [], homeHops = [];
+    for (let i = 0; i < civCount; i++) {
+      const spc = spPool[i % spPool.length];
+      const free = (c) => !homes.some((h) => h[0] === c[0]);
+      const starOk = (c) => (spc.stars ? spc.stars.includes(systems[c[0]].type) : !'BNH'.includes(systems[c[0]].type));
+      const cand = cr.shuffle(allPl.filter((c) => free(c) && starOk(c) && spc.homes.includes(systems[c[0]].planets[c[1]].climate)));
+      let pick = null;
+      for (const need of [6, 5, 4, 3, 2, 1]) { pick = cand.find((c) => homeHops.every((h) => h[c[0]] >= need)); if (pick) break; }
+      if (!pick) {
+        // 找不到合适的母星时，改造一颗行星的环境
+        let opts = cr.shuffle(allPl.filter((c) => free(c) && starOk(c)));
+        if (!opts.length) opts = cr.shuffle(allPl.filter(free));
+        pick = opts.find((c) => homeHops.every((h) => h[c[0]] >= 4)) || opts[0];
+        const p = systems[pick[0]].planets[pick[1]], cl = spc.homes[0];
+        p.climate = cl;
+        if (cl.includes('气态') || cl === '冰巨星') { p.kind = cl === '冰巨星' ? 'ice' : 'gas'; p.atmo = '—'; }
+        else { if (p.kind === 'gas' || p.kind === 'ice') p.kind = 'rock'; p.atmo = CLIMATE_ATMO[cl] || '适中'; p.T = CLIMATE_T[cl] || p.T; p.hab = !CLIMATE_ATMO[cl] && cl in CLIMATE_T; }
+      }
+      homes.push(pick); homeSp.push(spc); homeHops.push(hops(pick[0]));
+    }
+
+    const civs = [];
+    const langPool = cr.shuffle(LANGS);
+    // 星系在第一次被某个文明占据时，以该文明的语言命名
+    const claim = (sid, c) => {
+      const s = systems[sid];
+      if (!s.catalog) return;
+      const nr = R(seed, 'sysname', sid);
+      let nm, g = 0;
+      do { const n = nr.int(2, 3); nm = langWord(nr, c.lang, n, n === 2 ? 0.55 : 0.1); } while ((!speakable(nm, 4, 10) || used.has(nm)) && g++ < 200);
+      used.add(nm); s.name = nm; s.catalog = false; s.namedBy = c.id;
+    };
+    const makeCiv = (home, origin, parent, spc) => {
+      const id = civs.length;
+      const rr = R(seed, 'civ', id);
+      const lang = parent ? parent.lang : langPool[id % langPool.length];
+      const syl = null, end = null;
+      let name;
+      do { name = langWord(rr, lang, rr.int(1, 2), parent ? 0.9 : 0.55); } while ((!speakable(name, 4, 8) || used.has(name)) && rr.f() < 0.999);
+      used.add(name);
+      const S = parent ? parent.sp : spc;
+      const civ = {
+        id, name, lang, langLabel: lang.label, color: civColor(id),
+        sp: S, species: S.label, who: name + S.who,
+        culture: parent ? [parent.culture[0], rr.pick(S.cult.filter((x) => x !== parent.culture[0]))] : rr.shuffle(S.cult).slice(0, 2),
+        society: rr.pick(S.pol),
+        ethos: rr.pick(S.ethos || ETHOS),
+        home, origin, parent: parent ? parent.id : null, alive: true, endYear: null, fate: null,
+        tech: parent ? parent.tech : S.tech0, stab: 0.65, territory: new Set([home[0]]),
+        space: !!parent, lastNeg: null, lastColony: null, events: [], contacted: new Set(),
+        trade: new Set(), rel: {}, unrestAt: -9999, dug: new Set(), founded: !!parent,
+      };
+      civ.polity = () => civ.name + civ.society;
+      civs.push(civ);
+      return civ;
+    };
+    homes.forEach((h, i) => makeCiv(h, i === 0 || homeSp[i].early ? cr.int(0, 3) * 50 : cr.int(0, 20) * 50, null, homeSp[i]));
+
+    // ===== 历史推演 =====
+    const PRESENT = 3000, STEP = 50;
+    const owner = systems.map(() => null);
+    const ruins = systems.map(() => new Set());
+    const events = [];
+    const contactEv = {};
+    const wars = [];
+    const pk = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
+    const er = R(seed, 'history');
+
+    const plName = (sid, pl) => (pl < 0 ? systems[sid].name + '星系深空' : systems[sid].name + ' ' + ROMAN[pl]);
+    const pickPlanet = (sid, prefer) => {
+      const ps = systems[sid].planets;
+      if (!ps.length) return -1;
+      const solid = ps.filter((p) => p.kind !== 'gas' && p.kind !== 'ice');
+      if (prefer === 'gas') { const g = ps.filter((p) => p.kind === 'gas' || p.kind === 'ice'); if (g.length) return er.pick(g).i; }
+      if (prefer === 'hab') { const h = ps.filter((p) => p.hab); if (h.length) return er.pick(h).i; }
+      if (solid.length && (prefer === 'solid' || er.chance(0.8))) return er.pick(solid).i;
+      return er.pick(ps).i;
+    };
+    const ev = (o) => {
+      o.id = events.length;
+      if (!o.live) o.y = Math.min(o.y, PRESENT);
+      o.sum = sp(o.sum); o.trace = sp(o.trace);
+      events.push(o);
+      civs[o.civ].events.push(o.id);
+      if (o.other != null) civs[o.other].events.push(o.id);
+      return o.id;
+    };
+    const border = (a, b) => {
+      const out = [];
+      for (const s of a.territory) for (const n of adj[s]) if (b.territory.has(n)) out.push([s, n]);
+      return out;
+    };
+    const relInit = (a, b) => {
+      let v = er.range(-0.3, 0.3) + a.sp.amity + b.sp.amity;
+      if (a.ethos === b.ethos) v += 0.2;
+      if (a.ethos === '扩张' || b.ethos === '扩张') v -= 0.2;
+      if (a.ethos === '贸易' || b.ethos === '贸易') v += 0.2;
+      if ((a.ethos === '信仰' && b.ethos === '求知') || (b.ethos === '信仰' && a.ethos === '求知')) v -= 0.2;
+      return v;
+    };
+    const getRel = (a, b) => a.rel[b.id] ?? 0;
+    const setRel = (a, b, v) => { v = Math.max(-1, Math.min(1, v)); a.rel[b.id] = v; b.rel[a.id] = v; };
+    const collapse = (c, y, cause, conquered) => {
+      if (!c.alive) return;
+      if (!conquered && c.tech >= 5 && er.chance(0.5)) {
+        const sid = c.home[0];
+        cause = ev({ y, type: 'exodus', civ: c.id, sys: sid, pl: c.home[1], cause,
+          sum: `${c.polity()}在衰落中建造方舟舰队，驶离了本星域。`,
+          trace: `${plName(sid, c.home[1])}轨道上的巨型船坞已经空置。最后一次发射的航向记录指向星域之外，此后没有回传信号。` });
+      }
+      const sid = conquered ? c.home[0] : c.home[0];
+      ev({ y, type: 'collapse', civ: c.id, sys: sid, pl: c.home[1], cause,
+        sum: conquered ? `${c.polity()}失去最后的领土，作为独立文明不复存在。` : `${c.polity()}瓦解，此后不再留下任何记录。`,
+        trace: conquered
+          ? `母星的城市在同一时期遭到摧毁，焦土层厚达数米。此后的地层中只有征服者的建筑。`
+          : `所有官方记录在同一年中断。城市没有遭受破坏的迹象，只是被逐渐遗弃，风沙填满了街道。` });
+      c.alive = false; c.endYear = y; c.fate = conquered ? '被征服' : '瓦解';
+      for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); }
+      c.territory.clear();
+      for (const w of wars) if (!w.over && (w.a === c.id || w.b === c.id)) w.over = true;
+    };
+
+    for (let y = 0; y <= PRESENT; y += STEP) {
+      const alive = civs.filter((c) => c.alive && c.origin <= y);
+      for (const c of er.shuffle(alive)) {
+        if (!c.alive) continue;
+        if (!c.founded) {
+          c.founded = true; owner[c.home[0]] = c.id; claim(c.home[0], c);
+          const p = systems[c.home[0]].planets[c.home[1]];
+          c.lastNeg = null;
+          c.foundEv = ev({ y, type: 'found', civ: c.id, sys: c.home[0], pl: c.home[1], cause: null,
+            sum: c.sp.foundAt === 'star' ? `${c.species}${c.who}在 ${systems[c.home[0]].name} 的恒星日冕中觉醒，建立了${c.polity()}。` : `${c.species}${c.who}在${/[星体界]$/.test(p.climate) ? p.climate : p.climate + '行星'}${plName(c.home[0], c.home[1])}上${c.sp.foundVerb || '崛起'}，建立了${c.polity()}。`,
+            trace: `这里发现${c.sp.city}。最古老的部分使用一种早期的${c.sp.script}，其中反复出现「${c.name}」这个名字，旁边是母星的星图。` });
+          continue;
+        }
+        // 基础演化
+        const atWar = wars.filter((w) => !w.over && (w.a === c.id || w.b === c.id)).length;
+        c.tech = Math.min(10, c.tech + er.range(0.05, 0.19) + c.sp.tech + (c.ethos === '求知' ? 0.06 : 0) + c.trade.size * 0.03);
+        c.stab += (c.sp.stab - c.stab) * 0.12 + er.range(-0.06, 0.06) - atWar * 0.06 - Math.max(0, c.territory.size - 6) * 0.012 + c.trade.size * 0.01;
+        c.stab = Math.max(0, Math.min(1, c.stab));
+
+        if (!c.space && c.tech >= 3) {
+          c.space = true;
+          c.lastColony = ev({ y, type: 'space', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.foundEv,
+            sum: `${c.polity()}首次进入太空。`,
+            trace: `${plName(c.home[0], c.home[1])}的高轨道上发现${c.sp.ship}。内部保留着航行记录，用的是${c.name}${c.sp.script}。` });
+          continue;
+        }
+        // 殖民
+        const pCol = { 扩张: 0.4, 贸易: 0.22, 求知: 0.2, 信仰: 0.18, 隐修: 0.07 }[c.ethos] * c.sp.col;
+        if (c.space && er.chance(pCol)) {
+          const opts = [];
+          for (const s of c.territory) for (const n of adj[s]) if (owner[n] == null && systems[n].planets.length && !opts.includes(n)) opts.push(n);
+          if (opts.length) {
+            const sid = er.pick(opts); const pl = pickPlanet(sid, c.sp.prefer || 'solid');
+            owner[sid] = c.id; c.territory.add(sid); claim(sid, c);
+            const hadRuin = [...ruins[sid]].filter((x) => x !== c.id);
+            c.lastColony = ev({ y, type: 'colony', civ: c.id, sys: sid, pl, cause: c.lastColony,
+              sum: `${c.polity()}在${systems[sid].name}星系建立殖民地。`,
+              trace: c.sp.settle ? `${plName(sid, pl)}${c.sp.settle.startsWith('的') ? '' : '上'}${c.sp.settle}` : er.pick([
+                `${plName(sid, pl)}上有一处规划整齐的定居点，建筑使用统一规格的预制模块。奠基碑上用${c.sp.script}刻着首批移民的名单，共 ${er.int(40, 900)} 个名字。`,
+                `${plName(sid, pl)}上发现一座穹顶聚落，气闸门上印着${c.who}的徽记。仓库里还留有几批没有开封的补给。`,
+                `一条从${plName(sid, pl)}延伸到轨道的货运缆索，底座的铭牌用${c.sp.script}记录了殖民地的建立年份。`,
+              ]) });
+            if (hadRuin.length && !c.dug.has(hadRuin[0]) && er.chance(0.7)) {
+              const old = civs[hadRuin[0]]; c.dug.add(old.id);
+              const ce = events.find((e) => e.civ === old.id && (e.type === 'collapse' || e.type === 'vanish'));
+              ev({ y: y + 25, type: 'dig', civ: c.id, other: old.id, sys: sid, pl, cause: ce ? ce.id : null,
+                sum: `${c.who}在${systems[sid].name}发掘出更早的${old.who}遗迹。`,
+                trace: `一处考古营地，工具上印着${c.who}的标记。他们挖掘的对象比营地本身古老得多，探方里露出的是${old.name}${old.sp.script}。` });
+            }
+            continue;
+          }
+        }
+        // 接触
+        const meet = new Map();
+        for (const x of c.territory) for (const m of adj[x]) { const oid = owner[m]; if (oid != null && oid !== c.id && !c.contacted.has(oid) && civs[oid].alive && !meet.has(oid)) meet.set(oid, x); }
+        for (const [oid, s] of meet) {
+          const o = civs[oid];
+          c.contacted.add(o.id); o.contacted.add(c.id);
+          setRel(c, o, relInit(c, o));
+          contactEv[pk(c.id, o.id)] = ev({ y, type: 'contact', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: c.lastColony,
+            sum: `${c.polity()}与${o.polity()}在${systems[s].name}星系首次接触。`,
+            trace: `一座信标仍在低功率广播，里面并存着两种记录：${c.name}${c.sp.script}和${o.name}${o.sp.script}。两段内容是相同的问候。` });
+        }
+        // 关系、贸易、战争
+        for (const oid of c.contacted) {
+          const o = civs[oid];
+          if (!o.alive) continue;
+          let v = getRel(c, o) * 0.97 + er.range(-0.09, 0.09) + (c.trade.has(oid) ? 0.03 : 0);
+          setRel(c, o, v);
+          const fighting = wars.some((w) => !w.over && pk(w.a, w.b) === pk(c.id, oid));
+          if (!fighting && !c.trade.has(oid) && v > 0.3 && er.chance(0.35)) {
+            c.trade.add(oid); o.trade.add(c.id);
+            const b = border(c, o); const s = b.length ? b[0][0] : c.home[0];
+            const te = ev({ y, type: 'trade', civ: c.id, other: oid, sys: s, pl: pickPlanet(s), cause: contactEv[pk(c.id, oid)],
+              sum: `${c.polity()}与${o.polity()}开通贸易航线。`,
+              trace: `轨道上有一座废弃的中转站，货舱里堆放着两种规格的集装箱。账簿用两种记录方式对照书写。` });
+            c.tradeEv = te; o.tradeEv = te;
+          }
+          const hawk = (c.ethos === '扩张' ? 0.15 : 0.04) * c.sp.hawk;
+          if (!fighting && (v < -0.15 || er.chance(hawk)) && er.chance(0.3)) {
+            const b = border(c, o);
+            if (!b.length) continue;
+            if (c.trade.has(oid)) { c.trade.delete(oid); o.trade.delete(c.id); }
+            const grievance = c.lastNeg && y - events[c.lastNeg]?.y <= 300 ? c.lastNeg : contactEv[pk(c.id, oid)];
+            const s = b[0][0];
+            const we = ev({ y, type: 'war', civ: c.id, other: oid, sys: s, pl: pickPlanet(s), cause: grievance,
+              sum: `${c.polity()}向${o.polity()}宣战。`,
+              trace: `一份宣战文书被铸在金属板上，立在${systems[s].name}的边境哨站。落款是${c.polity()}的最高议事机构，列举了 ${er.int(3, 9)} 条理由。` });
+            wars.push({ a: c.id, b: oid, ev: we, start: y, len: er.int(2, 6), over: false });
+            setRel(c, o, -0.6);
+          }
+        }
+        // 内部事件
+        const negs = [];
+        if (er.chance((0.02 + (c.trade.size ? 0.03 : 0)) * c.sp.plague)) {
+          const fromTrade = c.trade.size && er.chance(0.6);
+          c.stab -= 0.25;
+          const s = er.pick([...c.territory]);
+          c.lastNeg = ev({ y, type: 'plague', civ: c.id, sys: s, pl: pickPlanet(s, 'hab'), cause: fromTrade ? c.tradeEv : null,
+            sum: c.sp.plagueSum.replace('{P}', c.polity()) + (fromTrade ? '，最早出现在贸易港。' : '。'),
+            trace: c.sp.plagueTrace + (fromTrade ? `残存的记录显示，它最早随一艘外国货船抵达。` : `残存的记录没有说明它从何而来。`) });
+          continue;
+        }
+        if (c.territory.size <= 3 && c.tech > 4 && er.chance(0.06 * c.sp.deplete)) {
+          c.stab -= 0.18;
+          c.lastNeg = ev({ y, type: 'deplete', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastColony,
+            sum: `${c.polity()}的核心矿藏与水源接近枯竭。`,
+            trace: `${plName(c.home[0], c.home[1])}地表遍布采掘坑，最深处已经接近地幔。工程档案的最后几页写满了配给数字。` });
+          continue;
+        }
+        if (c.stab > 0.68 && c.tech > 5 && er.chance(0.07 * c.sp.golden)) {
+          const s = er.pick([...c.territory]); const pl = pickPlanet(s, 'solid');
+          ev({ y, type: 'golden', civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.lastColony,
+            sum: `${c.polity()}进入繁荣时期，在${systems[s].name}建造了大型纪念建筑。`,
+            trace: `${plName(s, pl)}上矗立着一座巨型建筑，结构复杂到需要数月才能完成测绘。表面刻满${c.name}${c.sp.script}和星图，主题是「${c.culture[0]}」。` });
+          c.stab += 0.05;
+          continue;
+        }
+        if (c.ethos === '信仰' && er.chance(0.05)) {
+          const s = er.pick([...c.territory]); const pl = pickPlanet(s, 'solid');
+          ev({ y, type: 'faith', civ: c.id, sys: s, pl, cause: c.lastNeg,
+            sum: `${c.polity()}兴起新的宗教运动，在${systems[s].name}建立圣所。`,
+            trace: `一座朝向${c.name}母星方向的圣所。石阶被朝圣者的足迹磨出了凹痕。` });
+          c.stab += 0.1;
+          continue;
+        }
+        if (c.stab < 0.3 && y - c.unrestAt > 150 && er.chance(0.5)) {
+          c.unrestAt = y;
+          const s = c.home[0];
+          const ue = ev({ y, type: 'unrest', civ: c.id, sys: s, pl: c.home[1], cause: c.lastNeg,
+            sum: `${c.polity()}爆发大规模内乱。`,
+            trace: c.sp.unrest });
+          c.lastNeg = ue;
+          if (c.territory.size >= 4 && er.chance(0.35)) {
+            const hd = hops(c.home[0]);
+            const far = [...c.territory].filter((s) => s !== c.home[0]).sort((a, b) => hd[b] - hd[a]);
+            const take = far.slice(0, Math.max(1, Math.floor(far.length / 2)));
+            const nhSys = take[0];
+            let nhPl = systems[nhSys].planets.findIndex((p) => p.kind === 'rock' || p.kind === 'super');
+            if (nhPl < 0) nhPl = 0;
+            const oldName = c.polity();
+            const nc = makeCiv([nhSys, nhPl], y, c, c.sp);
+            nc.founded = true; nc.space = true; nc.stab = 0.6;
+            for (const s of take) { c.territory.delete(s); nc.territory.add(s); owner[s] = nc.id; }
+            nc.contacted.add(c.id); c.contacted.add(nc.id); setRel(c, nc, -0.4);
+            nc.foundEv = ev({ y: y + 10, type: 'schism', civ: nc.id, other: c.id, sys: nhSys, pl: nhPl, cause: ue,
+              sum: `${oldName}的边远殖民地宣布独立，成立${nc.polity()}。`,
+              trace: `一份独立宣言的原件保存在真空柜中。签名者全部来自边缘星系，使用的是${c.name}${c.sp.script}的一种变体。` });
+            nc.lastColony = nc.foundEv;
+            contactEv[pk(c.id, nc.id)] = nc.foundEv;
+            c.stab += 0.18;
+          } else if (er.chance(0.35)) {
+            const old = c.polity();
+            const opts = c.sp.pol.filter((k) => k !== c.society);
+            c.society = er.pick(opts);
+            ev({ y: y + 10, type: 'coup', civ: c.id, sys: s, pl: c.home[1], cause: ue,
+              sum: `${old}被推翻，${c.polity()}取而代之。`,
+              trace: `前任统治者的雕像被推倒，基座被重新刻上了「${c.polity()}」的名字。` });
+            c.stab += 0.25;
+          }
+          continue;
+        }
+        if (c.tech >= c.sp.vanish && er.chance(0.06)) {
+          ev({ y, type: 'vanish', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastColony,
+            sum: `${c.polity()}在数年之内停止了一切通讯，原因不明。`,
+            trace: `所有设施完好无损，能源系统仍在运转，但没有任何居民。最后一条公开广播只有一行数学公式。` });
+          c.alive = false; c.endYear = y; c.fate = '消失';
+          for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); }
+          c.territory.clear();
+          for (const w of wars) if (!w.over && (w.a === c.id || w.b === c.id)) w.over = true;
+          continue;
+        }
+        if (c.stab < 0.1) collapse(c, y, c.lastNeg, false);
+      }
+      // 战争推进
+      for (const w of wars) {
+        if (w.over) continue;
+        const A = civs[w.a], B = civs[w.b];
+        if (!A.alive || !B.alive) { w.over = true; continue; }
+        const b = border(A, B);
+        if (b.length && er.chance(0.45)) {
+          const [s] = er.pick(b);
+          const pl = pickPlanet(s);
+          const be = ev({ y, type: 'battle', civ: w.a, other: w.b, sys: s, pl, cause: w.ev,
+            sum: `${A.who}与${B.who}的舰队在${systems[s].name}星系交战。`,
+            trace: `${plName(s, pl)}附近散布着大量舰船残骸，分属两种不同的工艺体系。部分残骸仍在缓慢旋转。` });
+          A.lastNeg = be; B.lastNeg = be;
+        }
+        if ((y - w.start) / STEP >= w.len) {
+          w.over = true;
+          const str = (c) => c.tech * (1 + c.territory.size * 0.3) * (0.5 + c.stab) * er.range(0.7, 1.3);
+          const sa = str(A), sb = str(B);
+          const [win, lose] = sa > sb ? [A, B] : [B, A];
+          const fr = border(win, lose).map((x) => x[1]);
+          const take = [...new Set(fr)].slice(0, er.int(1, 3));
+          if (take.length && Math.max(sa, sb) / Math.min(sa, sb) > 1.2) {
+            for (const s of take) { lose.territory.delete(s); win.territory.add(s); owner[s] = win.id; ruins[s].add(lose.id); }
+            const s = take[0];
+            const ce = ev({ y, type: 'conquest', civ: win.id, other: lose.id, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
+              sum: `${win.polity()}击败${lose.polity()}，夺取了${take.map((t) => systems[t].name).join('、')}。`,
+              trace: `这里有两层截然不同的遗迹：底层属于${lose.who}，上层由${win.who}改建。许多${lose.name}${lose.sp.script}被刻意抹去。` });
+            lose.stab -= take.includes(lose.home[0]) ? 0.35 : 0.15; lose.lastNeg = ce;
+            if (lose.territory.size === 0 || take.includes(lose.home[0]) && lose.territory.size <= 1) {
+              for (const s2 of lose.territory) { owner[s2] = win.id; win.territory.add(s2); }
+              lose.territory.clear();
+              collapse(lose, y + 10, ce, true);
+            }
+          } else {
+            const s = border(A, B)[0]?.[0] ?? A.home[0];
+            const pe = ev({ y, type: 'peace', civ: w.a, other: w.b, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
+              sum: `${A.polity()}与${B.polity()}签订停战协定，边界维持原状。`,
+              trace: `一块界碑立在${systems[s].name}，两侧分别用${A.name}${A.sp.script}和${B.name}${B.sp.script}标出各自的疆域。` });
+            setRel(A, B, -0.2);
+            A.lastNeg = pe; B.lastNeg = pe;
+          }
+        }
+      }
+    }
+
+    // 起点：离所有母星都远、且邻近有遗迹的星系
+    const traceSys = new Set(events.map((e) => e.sys));
+    const hd = civs.map((c) => hops(c.home[0]));
+    let start = 0, best = -1;
+    for (const s of systems) {
+      if (s.type === 'S') continue;
+      const m = Math.min(...hd.map((h) => h[s.id]));
+      const near = adj[s.id].some((n) => traceSys.has(n)) ? 2 : 0;
+      const sc = Math.min(m, 4) + near / 2 + (traceSys.has(s.id) ? 3 : 0);
+      if (sc > best) { best = sc; start = s.id; }
+    }
+
+    // ===== 探索期：存续的文明继续演化，以 10 天为一步，预先推演 10 年 =====
+    const histCount = events.length;
+    const LIVE_DAYS = 3650, DSTEP = 10;
+    const baseOwner = owner.slice();
+    for (const s of systems) { s.name0 = s.name; s.catalog0 = s.catalog; s.renames = []; }
+    for (const c of civs) { c.alive0 = c.alive; c.society0 = c.society; }
+    const lr = R(seed, 'live');
+    let LD = 0;
+    const lname = (sid) => systems[sid].name;
+    const lev = (o) => { o.live = true; o.day = LD; o.y = PRESENT + Math.floor(LD / 365); return ev(o); };
+    const liveClaim = (sid, c) => {
+      const s = systems[sid];
+      if (!s.catalog) return null;
+      const old = s.name; claim(sid, c); s.renames.push({ day: LD, name: s.name, by: c.id });
+      return old;
+    };
+    const lwars = [];
+    const fighting = (a, b) => lwars.some((w) => !w.over && pk(w.a, w.b) === pk(a.id, b.id));
+    const endCiv = (c, fate, own) => {
+      c.alive = false; c.endDay = LD; c.endYear = PRESENT + Math.floor(LD / 365); c.fate = fate;
+      for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); own.push([s, null]); }
+      c.territory.clear();
+      for (const w of lwars) if (!w.over && (w.a === c.id || w.b === c.id)) w.over = true;
+    };
+    const PROJECTS = ['第一座跃迁信标', '环绕母星的轨道环', '一座深空观测阵列', '一张恒星能量收集网', '一座行星级档案库'];
+    for (const c of civs) c.nextDay = lr.int(10, 70);
+    for (LD = DSTEP; LD <= LIVE_DAYS; LD += DSTEP) {
+      const alive = civs.filter((c) => c.alive);
+      for (const c of lr.shuffle(alive)) {
+        if (!c.alive) continue;
+        const atWar = lwars.filter((w) => !w.over && (w.a === c.id || w.b === c.id)).length;
+        c.tech = Math.min(10, c.tech + 0.003 + c.sp.tech * 0.02);
+        c.stab = Math.max(0, Math.min(1, c.stab + (c.sp.stab - c.stab) * 0.015 + lr.range(-0.022, 0.022) - atWar * 0.01));
+        for (const oid of c.contacted) { const o = civs[oid]; if (o.alive) setRel(c, o, getRel(c, o) * 0.996 + lr.range(-0.025, 0.025)); }
+        // 新的接触
+        const meet = new Map();
+        for (const x of c.territory) for (const m of adj[x]) { const oid = owner[m]; if (oid != null && oid !== c.id && !c.contacted.has(oid) && civs[oid].alive && !meet.has(oid)) meet.set(oid, x); }
+        for (const [oid, s] of meet) {
+          const o = civs[oid];
+          c.contacted.add(o.id); o.contacted.add(c.id); setRel(c, o, relInit(c, o));
+          contactEv[pk(c.id, o.id)] = lev({ type: 'contact', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: c.lastColony,
+            sum: `${c.polity()}与${o.polity()}在${lname(s)}星系首次接触。`,
+            trace: `两支舰队在${lname(s)}附近对峙后各自退开，留下一座新架设的联络信标，正交替播放${c.name}${c.sp.script}和${o.name}${o.sp.script}。` });
+        }
+        if (c.stab < 0.08) {
+          const own = [];
+          const ce = lev({ type: 'collapse', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastNeg, own,
+            sum: `${c.polity()}崩溃了，各地殖民地相继失去联系。`,
+            trace: `${plName(c.home[0], c.home[1])}的通讯塔已经沉默，城市里只剩零星的灯光。最后几条广播是各地发出的求援信号。` });
+          endCiv(c, '瓦解', own);
+          continue;
+        }
+        if (LD < c.nextDay || !lr.chance(0.45)) continue;
+        // 可选的行动及其权重
+        const opts = [];
+        const free = [];
+        for (const s of c.territory) for (const n of adj[s]) if (owner[n] == null && systems[n].planets.length && !free.includes(n)) free.push(n);
+        const ethCol = { 扩张: 1.8, 贸易: 1, 求知: 1, 信仰: 0.9, 隐修: 0.35 }[c.ethos];
+        if (c.space && free.length) opts.push(['colony', 3 * c.sp.col * ethCol]);
+        const foes = [...c.contacted].map((i) => civs[i]).filter((o) => o.alive && !fighting(c, o) && border(c, o).length && (getRel(c, o) < -0.1 || c.ethos === '扩张' || c.sp.hawk > 1.5));
+        if (foes.length) opts.push(['war', (c.ethos === '扩张' ? 2.2 : 1.2) * Math.sqrt(c.sp.hawk)]);
+        const friends = [...c.contacted].map((i) => civs[i]).filter((o) => o.alive && !c.trade.has(o.id) && !fighting(c, o) && getRel(c, o) > 0.2);
+        if (friends.length) opts.push(['trade', 1.6]);
+        if (c.sp.plague > 0) opts.push(['plague', 0.7 * c.sp.plague * (c.trade.size ? 1.6 : 1)]);
+        if (c.stab > 0.55) opts.push(['golden', 0.9 * c.sp.golden]);
+        if (c.ethos === '信仰') opts.push(['faith', 0.9]);
+        const ruinSys = [...c.territory].filter((s) => [...ruins[s]].some((x) => x !== c.id && !c.dug.has(x)));
+        if (ruinSys.length) opts.push(['dig', 1.4]);
+        opts.push(['tech', 0.8 + (c.ethos === '求知' ? 0.8 : 0)]);
+        if (c.stab < 0.35) opts.push(['unrest', 3.5]);
+        if (c.tech >= c.sp.vanish) opts.push(['vanish', 0.25]);
+        const act = lr.weighted(opts);
+        c.nextDay = LD + lr.int(25, 85);
+        if (act === 'colony') {
+          const sid = lr.pick(free), pl = pickPlanet(sid, c.sp.prefer || 'solid');
+          owner[sid] = c.id; c.territory.add(sid);
+          const old = liveClaim(sid, c);
+          c.lastColony = lev({ type: 'colony', civ: c.id, sys: sid, pl, cause: c.lastColony, own: [[sid, c.id]],
+            sum: old ? `${c.polity()}在 ${old} 星系建立了新的殖民地，并将它命名为 ${lname(sid)}。` : `${c.polity()}在${lname(sid)}星系建立了新的殖民地。`,
+            trace: `${plName(sid, pl)}上的定居点刚刚落成，${c.who}的运输船还停在着陆场上，部分建筑的外壳尚未封闭。` });
+        } else if (act === 'war') {
+          const o = lr.pick(foes), b = border(c, o), s = b[0][0];
+          if (c.trade.has(o.id)) { c.trade.delete(o.id); o.trade.delete(c.id); }
+          const grievance = c.lastNeg != null && events[c.lastNeg].live ? c.lastNeg : contactEv[pk(c.id, o.id)];
+          const we = lev({ type: 'war', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: grievance,
+            sum: `${c.polity()}向${o.polity()}宣战。`,
+            trace: `${lname(s)}的边境哨站已经进入战备状态，通讯频道里反复播放着${c.name}${c.sp.script}写成的动员令。` });
+          lwars.push({ a: c.id, b: o.id, ev: we, end: LD + lr.int(60, 240), over: false });
+          setRel(c, o, -0.6);
+        } else if (act === 'trade') {
+          const o = lr.pick(friends);
+          c.trade.add(o.id); o.trade.add(c.id);
+          const b = border(c, o), s = b.length ? b[0][0] : c.home[0];
+          const te = lev({ type: 'trade', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: contactEv[pk(c.id, o.id)],
+            sum: `${c.polity()}与${o.polity()}签订了贸易协定。`,
+            trace: `${lname(s)}的轨道上新开了一座中转站，泊位上停着两种制式的货船，装卸作业日夜不停。` });
+          c.tradeEv = te; o.tradeEv = te;
+        } else if (act === 'plague') {
+          const s = lr.pick([...c.territory]), fromTrade = c.trade.size && lr.chance(0.6);
+          c.stab -= 0.18;
+          c.lastNeg = lev({ type: 'plague', civ: c.id, sys: s, pl: pickPlanet(s, 'hab'), cause: fromTrade ? c.tradeEv : null,
+            sum: c.sp.plagueSum.replace('{P}', c.polity()) + (fromTrade ? '，最早出现在贸易港。' : '。'),
+            trace: `${lname(s)}正在实行隔离，所有船只都被要求停靠检疫站。` + (fromTrade ? '检疫官怀疑源头是一艘外国货船。' : '') });
+        } else if (act === 'golden') {
+          const s = lr.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
+          c.stab += 0.06;
+          lev({ type: 'golden', civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.lastColony,
+            sum: `${c.polity()}在${lname(s)}落成了一座宏伟的纪念建筑。`,
+            trace: `${plName(s, pl)}上的新建筑刚刚揭幕，表面的${c.name}${c.sp.script}还很清晰，主题是「${c.culture[0]}」。` });
+        } else if (act === 'faith') {
+          const s = lr.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
+          c.stab += 0.08;
+          lev({ type: 'faith', civ: c.id, sys: s, pl, cause: c.lastNeg,
+            sum: `${c.polity()}兴起新的信仰运动，信众在${lname(s)}聚集。`,
+            trace: `大批朝圣者正涌向${plName(s, pl)}，临时营地沿着道路延伸了数公里。` });
+        } else if (act === 'dig') {
+          const s = lr.pick(ruinSys), old = civs[[...ruins[s]].find((x) => x !== c.id && !c.dug.has(x))];
+          c.dug.add(old.id);
+          const ce = events.find((e) => e.civ === old.id && (e.type === 'collapse' || e.type === 'vanish'));
+          lev({ type: 'dig', civ: c.id, other: old.id, sys: s, pl: pickPlanet(s, 'solid'), cause: ce ? ce.id : null,
+            sum: `${c.who}在${lname(s)}开始发掘${old.who}的遗迹。`,
+            trace: `${lname(s)}上新开了一处考古工地，${c.who}的学者正在清理${old.name}${old.sp.script}。` });
+        } else if (act === 'tech') {
+          const proj = lr.pick(PROJECTS); c.tech = Math.min(10, c.tech + 0.15);
+          lev({ type: 'tech', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.tradeEv ?? c.lastColony,
+            sum: `${c.polity()}建成了${proj}。`,
+            trace: `${plName(c.home[0], c.home[1])}附近，${proj}刚刚投入运行，周围还漂浮着施工平台。` });
+        } else if (act === 'unrest') {
+          const ue = lev({ type: 'unrest', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastNeg,
+            sum: `${c.polity()}爆发内乱。`, trace: '局势仍在发展。' + c.sp.unrest });
+          c.lastNeg = ue;
+          if (c.territory.size >= 3 && lr.chance(0.4)) {
+            const hd = hops(c.home[0]);
+            const far = [...c.territory].filter((x) => x !== c.home[0]).sort((a, b) => hd[b] - hd[a]);
+            const take = far.slice(0, Math.max(1, Math.floor(far.length / 2)));
+            const nhSys = take[0];
+            let nhPl = systems[nhSys].planets.findIndex((p) => p.kind === 'rock' || p.kind === 'super');
+            if (nhPl < 0) nhPl = 0;
+            const oldName = c.polity();
+            LD += 5;
+            const nc = makeCiv([nhSys, nhPl], PRESENT, c, c.sp);
+            nc.founded = true; nc.space = true; nc.stab = 0.6; nc.alive0 = false; nc.bornDay = LD; nc.society0 = nc.society; nc.nextDay = LD + 60;
+            for (const x of take) { c.territory.delete(x); nc.territory.add(x); owner[x] = nc.id; }
+            nc.contacted.add(c.id); c.contacted.add(nc.id); setRel(c, nc, -0.4);
+            nc.foundEv = lev({ type: 'schism', civ: nc.id, other: c.id, sys: nhSys, pl: nhPl, cause: ue, own: take.map((x) => [x, nc.id]),
+              sum: `${oldName}的边远星系宣布独立，成立${nc.polity()}。`,
+              trace: `${lname(nhSys)}的街头挂满了新旗帜。独立宣言刚刚发布，用的是${c.name}${c.sp.script}的一种变体。` });
+            nc.lastColony = nc.foundEv; contactEv[pk(c.id, nc.id)] = nc.foundEv;
+            LD -= 5; c.stab += 0.2;
+          } else if (lr.chance(0.5)) {
+            const old = c.polity();
+            c.society = lr.pick(c.sp.pol.filter((k) => k !== c.society));
+            LD += 5;
+            lev({ type: 'coup', civ: c.id, sys: c.home[0], pl: c.home[1], cause: ue, society: c.society,
+              sum: `${old}被推翻，${c.polity()}宣告成立。`,
+              trace: `${plName(c.home[0], c.home[1])}的政府建筑换上了新的徽记，旧政权的标识被连夜拆除。` });
+            LD -= 5; c.stab += 0.25;
+          }
+        } else if (act === 'vanish') {
+          const own = [];
+          lev({ type: 'vanish', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastColony, own,
+            sum: `${c.polity()}在几天之内停止了一切通讯。`,
+            trace: '所有设施仍在运转，但找不到任何居民。最后一条公开广播只有一行数学公式。' });
+          endCiv(c, '消失', own);
+        }
+      }
+      // 战争推进
+      for (const w of lwars) {
+        if (w.over) continue;
+        const A = civs[w.a], B = civs[w.b];
+        if (!A.alive || !B.alive) { w.over = true; continue; }
+        const b = border(A, B);
+        if (b.length && lr.chance(0.14)) {
+          const [s] = lr.pick(b), pl = pickPlanet(s);
+          const be = lev({ type: 'battle', civ: w.a, other: w.b, sys: s, pl, cause: w.ev,
+            sum: `${A.who}与${B.who}的舰队在${lname(s)}星系交火。`,
+            trace: `${plName(s, pl)}附近的残骸还在发热，碎片正沿着轨道散开。救援船在残骸之间搜寻幸存者。` });
+          A.lastNeg = be; B.lastNeg = be; A.stab -= 0.04; B.stab -= 0.04;
+        }
+        if (LD >= w.end) {
+          w.over = true;
+          const str = (c) => c.tech * (1 + c.territory.size * 0.3) * (0.5 + c.stab) * lr.range(0.7, 1.3);
+          const sa = str(A), sb = str(B);
+          const [win, lose] = sa > sb ? [A, B] : [B, A];
+          const take = [...new Set(border(win, lose).map((x) => x[1]))].slice(0, lr.int(1, 2));
+          if (take.length && Math.max(sa, sb) / Math.min(sa, sb) > 1.2) {
+            const own = take.map((x) => [x, win.id]);
+            for (const x of take) { lose.territory.delete(x); win.territory.add(x); owner[x] = win.id; ruins[x].add(lose.id); }
+            const s = take[0];
+            const ce = lev({ type: 'conquest', civ: win.id, other: lose.id, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev, own,
+              sum: `${win.polity()}攻占了${take.map((t) => lname(t)).join('、')}，${lose.polity()}被迫后撤。`,
+              trace: `${lname(s)}的旗帜和标识刚刚被替换，${lose.who}留下的设施上有明显的弹痕。` });
+            lose.stab -= take.includes(lose.home[0]) ? 0.3 : 0.12; lose.lastNeg = ce;
+            if (!lose.territory.size || take.includes(lose.home[0])) {
+              const own2 = [];
+              LD += 5;
+              lev({ type: 'collapse', civ: lose.id, sys: lose.home[0], pl: lose.home[1], cause: ce, own: own2,
+                sum: `${lose.polity()}失去了母星，作为独立文明不复存在。`,
+                trace: `${plName(lose.home[0], lose.home[1])}上，${win.who}的部队正在接管${lose.who}的城市。` });
+              for (const x of lose.territory) { owner[x] = win.id; win.territory.add(x); own2.push([x, win.id]); }
+              lose.territory.clear();
+              endCiv(lose, '被征服', own2);
+              LD -= 5;
+            }
+          } else {
+            const s = border(A, B)[0]?.[0] ?? A.home[0];
+            const pe = lev({ type: 'peace', civ: w.a, other: w.b, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
+              sum: `${A.polity()}与${B.polity()}宣布停火。`,
+              trace: `${lname(s)}的前线阵地正在撤离，双方的舰船保持着安全距离。` });
+            setRel(A, B, -0.2); A.lastNeg = pe; B.lastNeg = pe;
+          }
+        }
+      }
+    }
+    for (const s of systems) { s.name = s.name0; s.catalog = s.catalog0; }
+
+    for (const c of civs) {
+      c.territory = [...c.territory];
+      c.contacted = [...c.contacted];
+      delete c.trade; delete c.dug;
+    }
+    const planetsCount = systems.reduce((a, s) => a + s.planets.length, 0);
+    const habCount = systems.reduce((a, s) => a + s.planets.filter((p) => p.hab).length, 0);
+    return {
+      seed, W, H, systems, lanes, adj, civs, events, present: PRESENT, start, owner: baseOwner, histCount, liveDays: LIVE_DAYS,
+      stats: { systems: systems.length, planets: planetsCount, habitable: habCount, events: histCount, civs: civs.filter((c) => c.bornDay == null).length, ms: (typeof performance !== 'undefined' ? performance : Date).now() - t0 },
+      plName, ROMAN, STARS, sp, KIND_NAME, ETHOS_DESC, galaxy: { CX, CY, GR, density }, SPECIES,
+    };
+  }
+  return { generate, R };
+})();
+if (typeof module !== 'undefined') module.exports = Gen;
+</script>
+<script>
+/* ===== 遗星志 · 界面与探索 ===== */
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const SAVE = 'yxz-v4:';
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  };
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W, st, disc, atKey, sysKeys;
+  let tab = 'sys', filter = null, freshIds = new Set(), anim = null;
+
+  const civOf = (id) => W.civs[id];
+  const civTag = (id) => `<span class="civtag" style="--c:${civOf(id).color}">${civOf(id).who}</span>`;
+  const dist = (a, b) => Math.hypot(W.systems[a].x - W.systems[b].x, W.systems[a].y - W.systems[b].y);
+  const travelDays = (a, b) => Math.max(1, Math.round(dist(a, b) / 36));
+  const tempC = (T) => Math.round(T - 273);
+  // 探索从历史推演结束的那一年（纪元 3000 年）第 1 天开始，航行、勘测都会推进日期
+  const YEAR_DAYS = 365;
+  const today = () => ({ y: W.present + Math.floor(st.days / YEAR_DAYS), d: (st.days % YEAR_DAYS) + 1 });
+  const dateStr = () => { const t = today(); return `纪元 ${t.y} 年第 ${t.d} 天`; };
+  const evDate = (e) => `纪元 ${W.present + Math.floor(e.day / YEAR_DAYS)} 年第 ${(e.day % YEAR_DAYS) + 1} 天`;
+
+  // ---- 一整个螺旋星系：所有星区共享同一段历史 ----
+  const GSAVE = 'yxz-g1:', LAST = 'yxz-g1-last';
+  function load(seed, fresh) {
+    $('#loading').hidden = false;
+    $('#seed').value = seed;
+    setTimeout(() => {
+      W = Gen.generate(seed);
+      const saved = fresh ? null : store.get(GSAVE + seed);
+      st = saved && saved.v === 1 ? saved : { v: 1, cur: W.start, visited: [W.start], path: [W.start], surveyed: [], archEv: [], archived: [], days: 0 };
+      st.sel = st.cur;
+      store.set(LAST, seed);
+      freshIds = new Set(); filter = null; anim = null; glowCv = null; bgKey = '';
+      recompute(); renderLegend();
+      $('#loading').hidden = true;
+      fit(true);
+      renderAll();
+    }, 30);
+  }
+  function save() { const { sel, ...rest } = st; store.set(GSAVE + W.seed, rest); }
+
+  // ---- 随时间变化的世界状态 ----
+  const happened = (e) => !e.live || e.day <= st.days;
+  let ownerNow = [], happenedCount = 0;
+  const nameOf = (sid) => { const s = W.systems[sid]; let n = s.name; for (const r of s.renames) if (r.day <= st.days) n = r.name; return n; };
+  const isCatalog = (sid) => W.systems[sid].catalog && !W.systems[sid].renames.some((r) => r.day <= st.days);
+  const plName = (sid, pl) => (pl < 0 ? nameOf(sid) + '星系深空' : nameOf(sid) + ' ' + W.ROMAN[pl]);
+  const aliveNow = (c) => (c.bornDay != null ? c.bornDay <= st.days : c.alive0) && !(c.endDay != null && c.endDay <= st.days);
+  const polityNow = (c) => { let soc = c.society0; for (const id of c.events) { const e = W.events[id]; if (e.type === 'coup' && e.society && e.civ === c.id && e.live && happened(e)) soc = e.society; } return c.name + soc; };
+  const heard = (e) => e.live && (known(e.sys) || st.archived.includes(e.civ) || (e.other != null && st.archived.includes(e.other)));
+  function recompute() {
+    atKey = {}; sysKeys = W.systems.map(() => new Set()); happenedCount = 0;
+    ownerNow = W.owner.slice();
+    visArr = new Uint8Array(W.systems.length); knownArr = new Uint8Array(W.systems.length);
+    for (const v of st.visited) visArr[v] = 1;
+    for (const x of W.systems) for (const v of st.visited) { const o = W.systems[v]; if ((o.x - x.x) ** 2 + (o.y - x.y) ** 2 <= SCAN * SCAN) { knownArr[x.id] = 1; break; } }
+    for (const e of W.events) {
+      if (!happened(e)) continue;
+      happenedCount++;
+      const k = e.sys + ':' + e.pl;
+      (atKey[k] = atKey[k] || []).push(e.id);
+      sysKeys[e.sys].add(k);
+      if (e.own) for (const [x, o] of e.own) ownerNow[x] = o;
+    }
+    disc = new Map();
+    for (const k of st.surveyed) for (const id of atKey[k] || []) disc.set(id, 'survey');
+    for (const id of st.archEv) if (!disc.has(id)) disc.set(id, 'archive');
+    for (const e of W.events) if (happened(e) && !disc.has(e.id) && heard(e)) disc.set(e.id, 'news');
+    unsArr = W.systems.map((x) => [...sysKeys[x.id]].filter((k) => !st.surveyed.includes(k)).length);
+    civAtArr = W.systems.map(() => []);
+    for (const id of disc.keys()) { const e = W.events[id], L = civAtArr[e.sys]; if (!L.includes(e.civ)) L.push(e.civ); }
+  }
+  // 时间推进后，汇报途中截获的通讯
+  function newsSince(before) {
+    return [...disc.keys()].filter((id) => !before.has(id) && disc.get(id) === 'news').sort((a, b) => W.events[a].day - W.events[b].day);
+  }
+  const SCAN = 170; // 远程扫描半径（星图单位，约 85 pc）
+  let visArr = [], knownArr = [], unsArr = [], civAtArr = [];
+  const visited = (s) => visArr[s] === 1;
+  const known = (s) => knownArr[s] === 1;
+  // 已知范围内、离当前位置最近、还有未勘测痕迹的星系
+  const nearestSignal = () => {
+    let best = null, bd = Infinity;
+    for (const x of W.systems) { if (x.id === st.cur || !known(x.id) || !unsArr[x.id]) continue; const d = dist(st.cur, x.id); if (d < bd) { bd = d; best = x.id; } }
+    return best;
+  };
+  const unsurveyed = (s) => [...sysKeys[s]].filter((k) => !st.surveyed.includes(k));
+  const civEvents = (cid) => W.events.filter((e) => (e.civ === cid || e.other === cid) && happened(e));
+  const knownCivs = () => {
+    const set = new Set();
+    for (const id of disc.keys()) { const e = W.events[id]; set.add(e.civ); if (e.other != null) set.add(e.other); }
+    return [...set].sort((a, b) => a - b);
+  };
+
+  /* ---------- 操作 ---------- */
+  function select(s, toTab) {
+    st.sel = s;
+    if (toTab) tab = toTab;
+    renderAll();
+  }
+  function travel(to) {
+    if (to === st.cur) return;
+    const from = st.cur;
+    st.days += travelDays(from, to);
+    st.cur = to; st.sel = to;
+    if (!visited(to)) st.visited.push(to);
+    st.path.push(to); if (st.path.length > 60) st.path.shift();
+    const before = new Set(disc.keys());
+    recompute();
+    const news = newsSince(before);
+    freshIds = new Set(news);
+    save();
+    const dur = reduce ? 0 : Math.min(1800, 450 + dist(from, to) * 0.9);
+    if (dur) anim = { from, to, t0: performance.now(), dur };
+    follow(to, dur);
+    tab = 'sys';
+    renderAll();
+    const n = unsurveyed(to).length;
+    toast(`${dateStr()}，抵达${nameOf(to)}。` + (n ? `检测到 ${n} 处人工痕迹。` : '没有检测到人工痕迹。'), news);
+  }
+  function linksFor(ids) {
+    let n = 0;
+    for (const id of ids) {
+      const e = W.events[id];
+      if (e.cause != null && disc.has(e.cause)) n++;
+      for (const o of W.events) if (o.cause === id && disc.has(o.id) && !ids.includes(o.id)) n++;
+    }
+    return n;
+  }
+  function survey(key) {
+    if (st.surveyed.includes(key)) return;
+    st.surveyed.push(key); st.days += 2;
+    const before = new Set(disc.keys());
+    recompute();
+    const news = newsSince(before);
+    const got = [...disc.keys()].filter((id) => !before.has(id) && disc.get(id) !== 'news');
+    freshIds = new Set([...got, ...news]);
+    save(); renderAll();
+    const links = linksFor(got);
+    toast(got.length ? `复原 ${got.length} 条记录` + (links ? `，接上 ${links} 处因果联系。` : '。') : '这里的记录你已经通过其他途径获知。', news);
+  }
+  function archive(cid) {
+    const c = civOf(cid);
+    const missing = civEvents(cid).filter((e) => !disc.has(e.id)).sort((a, b) => a.y - b.y).slice(0, 5).map((e) => e.id);
+    st.archived.push(cid); st.archEv.push(...missing); st.days += 1;
+    const before = new Set(disc.keys());
+    recompute();
+    const news = newsSince(before).filter((id) => !missing.includes(id));
+    freshIds = new Set([...missing, ...news]);
+    save(); renderAll();
+    toast((missing.length ? `${c.who}的档案馆提供了 ${missing.length} 条记录。` : `${c.who}的档案中没有你尚未掌握的内容。`) + `今后会持续收到他们的通讯。`, news);
+  }
+  let toastT;
+  function toast(msg, news) {
+    const t = $('#toast');
+    let h = `<div>${msg}</div>`;
+    if (news && news.length) {
+      const last = W.events[news[news.length - 1]];
+      h += `<div class="tnews"><b>截获 ${news.length} 条新通讯</b>${last.sum}${news.length > 1 ? ' 等' : ''}</div>`;
+    }
+    t.innerHTML = W.sp(h); t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), news && news.length ? 5200 : 3200);
+  }
+
+  /* ---------- 渲染：顶栏、地图条 ---------- */
+  function renderStatus() {
+    const s = W.systems[st.cur];
+    const t = today();
+    $('#status').innerHTML = W.sp(`<span class="now" title="出发至今共 ${st.days} 天">当前 纪元 <b>${t.y}</b> 年 · 第 <b>${t.d}</b> 天</span><span>位置 <b>${nameOf(st.cur)}</b> · 星区 ${secName(W.systems[st.cur])}</span><span>记录 <b>${disc.size}</b>/${happenedCount}</span>`);
+  }
+  function renderBar() {
+    const s = W.systems[st.sel], star = W.STARS[s.type];
+    let html;
+    if (st.sel === st.cur) {
+      html = `${starSVG(star, 18)}<span class="where">${nameOf(st.sel)}</span><span class="meta">当前位置 · ${star.name}</span><span class="act">${nearestSignal() != null ? `<button class="btn" id="seek">前往最近的信号 · ${travelDays(st.cur, nearestSignal())} 天</button>` : `<span class="meta">附近没有已知信号，拖动星图去更远的地方看看</span>`}</span>`;
+    } else {
+      html = `${starSVG(star, 18)}<span class="where">${nameOf(st.sel)}</span><span class="meta">${star.name} · ${visited(st.sel) ? '已探索' : '未探索'} · 航程 ${travelDays(st.cur, st.sel)} 天</span>` +
+        `<span class="act"><button class="btn primary" id="go">航行至此</button></span>`;
+    }
+    $('#mapbar').innerHTML = W.sp(html);
+    const go = $('#go'); if (go) go.onclick = () => travel(st.sel);
+    const seek = $('#seek'); if (seek) seek.onclick = () => travel(nearestSignal());
+  }
+
+  /* ---------- 图标 ---------- */
+  function starSVG(star, size) {
+    const c = star.color, g = star.glyph;
+    let b = '';
+    const ray = (n, L, w) => Array.from({ length: n }, (_, i) => { const a = (i * Math.PI * 2) / n; return `<line x1="0" y1="0" x2="${(Math.cos(a) * L).toFixed(2)}" y2="${(Math.sin(a) * L).toFixed(2)}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`; }).join('');
+    if (g === 'dwarf') b = `<circle r="7" fill="${c}" opacity=".18"/><circle r="4" fill="${c}"/>`;
+    else if (g === 'sun') b = `<circle r="9.5" fill="${c}" opacity=".16"/><circle r="5.2" fill="${c}"/>`;
+    else if (g === 'bright') b = `${ray(4, 11, 1)}<circle r="8" fill="${c}" opacity=".15"/><circle r="5" fill="${c}"/>`;
+    else if (g === 'giant') b = `${ray(4, 11.5, 1.2)}<g transform="rotate(45)">${ray(4, 8, 1)}</g><circle r="9" fill="${c}" opacity=".2"/><circle r="6.4" fill="${c}"/>`;
+    else if (g === 'white') b = `<circle r="7" fill="none" stroke="${c}" stroke-width="1" opacity=".7"/><circle r="2.6" fill="${c}"/>`;
+    else if (g === 'pulsar') b = `<path d="M0 0 L-2.2 -11 L2.2 -11 Z M0 0 L-2.2 11 L2.2 11 Z" fill="${c}" opacity=".75" transform="rotate(25)"/><circle r="2.4" fill="#ffffff"/>`;
+    else if (g === 'core') b = `<circle r="11" fill="${c}" opacity=".22"/><ellipse rx="11.5" ry="4" fill="none" stroke="${c}" stroke-width="1.8" transform="rotate(-18)"/><circle r="5.5" fill="#050a18" stroke="${c}" stroke-width="1"/>`;
+    else if (g === 'hole') b = `<ellipse rx="10.5" ry="3.6" fill="none" stroke="${c}" stroke-width="1.6" transform="rotate(-18)"/><circle r="5" fill="#050a18" stroke="${c}" stroke-width=".8" opacity=".95"/>`;
+    return `<svg class="ico" width="${size}" height="${size}" viewBox="-12 -12 24 24" aria-hidden="true">${b}</svg>`;
+  }
+  const PCOL = {
+    海洋: ['#2f6fb0', '#2f6fb0'], 群岛: ['#2f6fb0', '#7fbf7a'], 温带: ['#3a76b5', '#6fae5c'], 草原: ['#3f74a8', '#b8b05a'], 雨林: ['#2f6a8f', '#3f8f4a'],
+    荒漠: ['#c99a5e', '#a67646'], 冻原: ['#8fa6b8', '#e6eef4'], 冰封世界: ['#d9e7f2', '#ffffff'], 熔岩世界: ['#3b1d1a', '#ff8a3c'], 温室炼狱: ['#d9a443', '#f3d08a'],
+    灼烧岩体: ['#8b6a5a', '#5d463b'], 冰冷岩体: ['#8d939e', '#666b75'], 荒芜岩体: ['#9a8e80', '#6d6459'],
+    气态巨行星: ['#c9a27a', '#e8cfae'], 炽热气态巨行星: ['#d0704a', '#f2a477'], 冰巨星: ['#8fc6d6', '#c5e6ee'],
+  };
+  function planetSVG(p) {
+    const R = { dwarf: 5.5, rock: 7.5, super: 9, gas: 11, ice: 10 }[p.kind] || 8;
+    const [a, b2] = PCOL[p.climate] || ['#888', '#aaa'];
+    const id = 'c' + Math.random().toString(36).slice(2, 8);
+    let f = '';
+    const cl = p.climate;
+    if (p.kind === 'gas' || p.kind === 'ice') {
+      f = `<g clip-path="url(#${id})"><rect x="-14" y="${-R * 0.45}" width="28" height="${R * 0.28}" fill="${b2}" opacity=".7"/><rect x="-14" y="${R * 0.2}" width="28" height="${R * 0.22}" fill="${b2}" opacity=".5"/></g>`;
+      if (p.moons >= 4 || p.kind === 'ice') f += `<ellipse rx="${R + 3.5}" ry="${R * 0.28}" fill="none" stroke="${b2}" stroke-width="1.1" opacity=".85" transform="rotate(${p.kind === 'ice' ? -55 : -14})"/>`;
+    } else if (/海洋|温带|草原|雨林|群岛/.test(cl)) {
+      f = cl === '群岛'
+        ? `<g fill="${b2}"><circle cx="-3" cy="-2" r="1.3"/><circle cx="2" cy="1" r="1.1"/><circle cx="-1" cy="4" r="1"/><circle cx="4" cy="-4" r="0.9"/></g>`
+        : cl === '海洋' ? `<path d="M${-R * 0.6} ${-R * 0.1} q${R * 0.3} ${-R * 0.25} ${R * 0.6} 0 t${R * 0.6} 0" fill="none" stroke="#9cc8ee" stroke-width=".9" opacity=".6"/>`
+          : `<g clip-path="url(#${id})" fill="${b2}"><path d="M${-R} ${-R * 0.2} q${R * 0.4} ${-R * 0.7} ${R * 0.9} ${-R * 0.3} q${R * 0.2} ${R * 0.5} ${-R * 0.3} ${R * 0.7} z"/><path d="M${R * 0.15} ${R * 0.25} q${R * 0.5} ${-R * 0.3} ${R * 0.9} ${R * 0.1} l0 ${R * 0.6} q${-R * 0.5} ${R * 0.1} ${-R * 0.9} ${-R * 0.7} z"/></g>`;
+      f += `<circle r="${R + 1.2}" fill="none" stroke="#8fc7ff" stroke-width=".8" opacity=".45"/>`;
+    } else if (cl === '熔岩世界') {
+      f = `<path d="M${-R * 0.7} ${-R * 0.2} l${R * 0.5} ${R * 0.3} l${R * 0.3} ${-R * 0.5} l${R * 0.6} ${R * 0.4} M${-R * 0.3} ${R * 0.5} l${R * 0.5} ${-R * 0.2}" stroke="${b2}" stroke-width="1.1" fill="none" stroke-linecap="round"/>`;
+    } else if (cl === '温室炼狱') {
+      f = `<circle r="${R + 1.6}" fill="none" stroke="${b2}" stroke-width="1.4" opacity=".55"/><path d="M${-R} 0 h${R * 2}" stroke="${b2}" stroke-width="1" opacity=".6"/>`;
+    } else if (cl === '冻原' || cl === '冰封世界') {
+      f = `<g clip-path="url(#${id})" fill="${b2}"><ellipse cy="${-R}" rx="${R * 0.9}" ry="${R * 0.45}"/><ellipse cy="${R}" rx="${R * 0.8}" ry="${R * 0.35}"/></g>`;
+    } else if (cl === '荒漠') {
+      f = `<g clip-path="url(#${id})"><path d="M${-R} ${R * 0.1} q${R * 0.5} ${-R * 0.3} ${R} 0 t${R} 0" fill="none" stroke="${b2}" stroke-width="1.2"/><path d="M${-R} ${R * 0.5} q${R * 0.5} ${-R * 0.3} ${R} 0 t${R} 0" fill="none" stroke="${b2}" stroke-width="1"/></g>`;
+    } else {
+      f = `<circle cx="${-R * 0.3}" cy="${-R * 0.25}" r="${R * 0.22}" fill="${b2}"/><circle cx="${R * 0.35}" cy="${R * 0.3}" r="${R * 0.16}" fill="${b2}"/><circle cx="${R * 0.25}" cy="${-R * 0.45}" r="${R * 0.1}" fill="${b2}"/>`;
+    }
+    return `<svg class="ico" width="28" height="28" viewBox="-14 -14 28 28" aria-hidden="true"><defs><clipPath id="${id}"><circle r="${R}"/></clipPath></defs><circle r="${R}" fill="${a}" stroke="rgba(234,242,255,.22)" stroke-width=".7"/>${f}<path d="M${R * 0.1} ${-R} A${R} ${R} 0 0 1 ${R * 0.1} ${R} A${R * 0.75} ${R} 0 0 0 ${R * 0.1} ${-R}" fill="#000" opacity=".28"/></svg>`;
+  }
+  const debrisSVG = () => `<svg class="ico" width="28" height="28" viewBox="-14 -14 28 28" aria-hidden="true"><g fill="#98aed4"><rect x="-7" y="-3" width="5" height="2" transform="rotate(20)"/><rect x="2" y="-6" width="3" height="3" transform="rotate(-15)"/><rect x="-2" y="4" width="6" height="1.6"/><circle cx="7" cy="3" r="1"/></g></svg>`;
+  function renderLegend() {
+    const order = ['M', 'K', 'B', 'W', 'N', 'H', 'S'];
+    const lab = { M: '红矮星', K: '主序恒星', B: '蓝白巨星', W: '白矮星', N: '脉冲星', H: '黑洞', S: '银河核心' };
+    $('#lg').innerHTML = order.map((k) => `<span>${starSVG(W.STARS[k], 18)}${lab[k]}</span>`).join('') +
+      `<span><svg class="ico" width="18" height="18" viewBox="-12 -12 24 24"><path d="M0 -5 L5 0 L0 5 L-5 0 Z" fill="#ffd27a"/></svg>检测到人工痕迹</span>` +
+      `<span><svg class="ico" width="18" height="18" viewBox="-12 -12 24 24"><circle r="8" fill="none" stroke="#c9a8ff" stroke-width="1.6"/></svg>已发现文明遗迹</span>` +
+      `<span><svg class="ico" width="18" height="18" viewBox="-12 -12 24 24"><path d="M-10 0 H10" stroke="#8fd3ff" stroke-dasharray="3 3" stroke-width="1.5"/></svg>你的航迹</span>` +
+      `<span><b class="mono">KSC</b>无人命名的星系</span><span><svg class="ico" width="18" height="18" viewBox="-12 -12 24 24"><circle r="10" fill="#8fd3ff" opacity=".22"/></svg>远程扫描范围</span>`;
+  }
+
+  /* ---------- 渲染：面板 ---------- */
+  function fragHTML(id) {
+    const e = W.events[id];
+    return `<div class="frag${freshIds.has(id) ? ' new' : ''}" style="--c:${civOf(e.civ).color}">
+      <div class="find">${e.trace}</div>
+      <div class="infer">${e.live ? `<b>${evDate(e)}</b>` : `推断 · <b>约纪元 ${e.y} 年</b>`}：${e.sum}</div></div>`;
+  }
+  function renderSys() {
+    const sid = st.sel, s = W.systems[sid], star = W.STARS[s.type];
+    const here = sid === st.cur, vis = visited(sid);
+    let h = `<div class="eyebrow">恒星系 · 星区 ${secName(s)} · ${(s.x * 0.5).toFixed(0)}, ${(s.y * 0.5).toFixed(0)} pc</div>
+      <div class="sysname"><span class="sicon">${starSVG(star, 30)}</span>${nameOf(sid)}${here ? '<span class="chip here">当前位置</span>' : vis ? '<span class="chip">已探索</span>' : '<span class="chip">未探索</span>'}</div>
+      <div class="starline">${star.name} · ${star.cls}${star.temp ? ` · ${star.temp.toLocaleString('en')} K` : ''} · 光度 ${s.lum < 0.001 ? '< 0.001' : s.lum < 0.1 ? s.lum.toFixed(3) : s.lum.toFixed(2)} L☉</div>`;
+    if (!vis) {
+      const sig = known(sid) ? unsurveyed(sid).length : 0;
+      h += `<p class="note">尚未抵达。${sig ? `远程扫描在这里检测到 <b style="color:var(--brass)">${sig} 处人工痕迹</b>，抵达后可以勘测。` : known(sid) ? '远程扫描没有发现人工痕迹，但近距离勘察可能会有不同结果。' : '它在扫描范围之外，只能确认恒星类型。'}航程约 ${travelDays(st.cur, sid)} 天。</p>`;
+      h += `<button class="btn primary" data-go="${sid}">航行至此</button>`;
+      $('#pane').innerHTML = W.sp(h); bindPane(); return;
+    }
+    if (!here) h += `<div class="goline"><button class="btn primary" data-go="${sid}">航行至此</button><span class="meta">航程约 ${travelDays(st.cur, sid)} 天</span></div>`;
+    if (!st.surveyed.length && !st.archived.length) {
+      h += `<div class="guide"><b>如何勘测</b><ol>
+        <li>行星下方出现「勘测」按钮的，就是有遗迹的地方，点击即可，每次耗时 2 天。</li>
+        <li>当前星系没有遗迹时，去星图上找带 <span style="color:var(--brass)">◆</span> 的星系：点一下选中，再点「航行至此」。任何星系都能直达，距离越远耗时越久。</li>
+        <li>勘测得到的记录会进入「编年史」，并标出它的起因。</li></ol></div>`;
+    }
+    const ow = ownerNow[sid];
+    const ren = s.renames.find((r) => r.day <= st.days);
+    if (ren) h += `<p class="note">原星表编号 ${s.name}，${evDate({ day: ren.day })}由 ${civTag(ren.by)} 命名。</p>`;
+    if (ow != null && aliveNow(civOf(ow))) {
+      const c = civOf(ow), done = st.archived.includes(ow);
+      h += `<div class="owned" style="--c:${c.color}"><p>此星系现属 ${civTag(ow)} 的领土（${polityNow(c)}），他们仍然生活在这里。</p>` +
+        (done ? `<span class="chip">档案已查阅</span>` : here ? `<button class="btn" data-arch="${ow}">请求查阅档案 · 1 天</button>` : `<span class="chip">抵达后可查阅档案</span>`) + `</div>`;
+    }
+    if (!s.planets.length && !sysKeys[sid].size) h += `<p class="note">这个星系没有行星，只有恒星和稀薄的尘埃盘。</p>`;
+    h += `<ul class="planets">`;
+    const rows = s.planets.map((p) => ({ p, key: sid + ':' + p.i }));
+    if (sysKeys[sid].has(sid + ':-1')) rows.push({ p: null, key: sid + ':-1' });
+    for (const { p, key } of rows) {
+      const evs = atKey[key] || [], done = st.surveyed.includes(key);
+      h += `<li class="planet"><div class="num">${p ? planetSVG(p) : debrisSVG()}<span>${p ? W.ROMAN[p.i] : ''}</span></div><div>`;
+      if (p) {
+        h += `<div class="ttl">${p.climate}<span class="kind">${W.KIND_NAME[p.kind]}</span>${p.hab ? '<span class="tag hab">宜居</span>' : ''}${evs.length && !done ? '<span class="tag sig">◆ 人工痕迹</span>' : ''}</div>
+          <div class="data">轨道 ${p.orbit.toFixed(2)} AU · 表面 ${tempC(p.T)} °C · 大气 ${p.atmo}${p.moons ? ' · 卫星 ' + p.moons : ''}</div>`;
+      } else {
+        h += `<div class="ttl">星系深空<span class="tag sig">◆ 人工痕迹</span></div><div class="data">游离于行星轨道之外的人造物</div>`;
+      }
+      if (evs.length) {
+        if (done) h += evs.map(fragHTML).join('');
+        else if (here) h += `<div class="do"><button class="btn" data-survey="${key}">勘测 · 2 天</button></div>`;
+        else h += `<div class="data" style="margin-top:6px">返回此星系后可勘测</div>`;
+      }
+      h += `</div></li>`;
+    }
+    h += `</ul>`;
+    if (here && !sysKeys[sid].size) h += `<p class="note">这里没有任何文明留下的痕迹。查看星图，前往其他星系。</p>`;
+    $('#pane').innerHTML = W.sp(h); bindPane();
+  }
+  function renderChron() {
+    const total = happenedCount, n = disc.size;
+    let h = `<div class="eyebrow">星域编年史</div>
+      <div class="sysname" style="font-size:22px">已复原 ${n} / ${total} 条</div>
+      <div class="progress"><div style="width:${(n / total) * 100}%"></div></div>
+      <div class="starline">${n === total ? `全部复原。现在是${dateStr()}，出发至今 ${st.days} 天。` : `现在是${dateStr()} · 出发至今 ${st.days} 天`}</div>`;
+    const kc = knownCivs();
+    if (!n) {
+      h += `<p class="empty">还没有复原任何记录。<br>星图上带 ◆ 标记的星系有未勘测的人工痕迹；抵达后，在行星列表中选择「勘测」。<br>每条记录都会注明它的起因。起因尚未找到时，会提示你还有缺失的一环。</p>`;
+      $('#pane').innerHTML = W.sp(h); bindPane(); return;
+    }
+    const recent = [...disc.keys()].map((id) => W.events[id]).filter((e) => e.live).sort((a, b) => b.day - a.day || b.id - a.id).slice(0, 4);
+    if (recent.length) {
+      h += `<div class="recent"><div class="eyebrow">最新动态</div>` + recent.map((e) => `<div class="ritem"><span class="rd">${W.present + Math.floor(e.day / YEAR_DAYS)} 年<br>第 ${(e.day % YEAR_DAYS) + 1} 天</span><span>${e.sum}</span></div>`).join('') + `</div>`;
+    }
+    h += `<div class="filters"><button data-f="" aria-pressed="${filter == null}">全部</button>` +
+      kc.map((c) => `<button data-f="${c}" aria-pressed="${filter === c}"><span class="civtag" style="--c:${civOf(c).color}">${civOf(c).name}</span></button>`).join('') + `</div><ol class="chron">`;
+    const list = [...disc.keys()].map((id) => W.events[id])
+      .filter((e) => filter == null || e.civ === filter || e.other === filter)
+      .sort((a, b) => a.y - b.y || (a.day ?? -1) - (b.day ?? -1) || a.id - b.id);
+    for (const e of list) {
+      const src = { archive: '档案', survey: '实地勘测', news: '截获通讯' }[disc.get(e.id)];
+      let cause = '';
+      if (e.cause != null) {
+        cause = disc.has(e.cause)
+          ? `<div class="cause"><span class="k">起因</span>${W.events[e.cause].sum}（${W.events[e.cause].y} 年）</div>`
+          : `<div class="cause open"><span class="k">起因</span>缺失的一环，尚未找到相关记录</div>`;
+      }
+      const ago = e.live ? (st.days - e.day < 1 ? '今天' : `${st.days - e.day} 天前`) : `${today().y - e.y} 年前`;
+      h += `<li class="entry${e.live ? ' live' : ''}"><div class="yr">${e.y}<small>${e.live ? `第 ${(e.day % YEAR_DAYS) + 1} 天<br>` : ''}${ago}</small></div><div>
+        <div class="sum">${e.sum}</div>
+        <div class="meta">${civTag(e.civ)}${e.other != null ? civTag(e.other) : ''}<button data-loc="${e.sys}">${plName(e.sys, e.pl)}</button><span>${src}</span></div>
+        ${cause}</div></li>`;
+    }
+    h += `</ol>`;
+    $('#pane').innerHTML = W.sp(h); bindPane();
+  }
+  function renderCivs() {
+    const kc = knownCivs();
+    let h = `<div class="eyebrow">已识别的文明</div><div class="sysname" style="font-size:22px">${kc.length} 个</div>`;
+    if (!kc.length) { h += `<p class="empty">尚未识别任何文明。勘测遗迹后，留下痕迹的文明会出现在这里，它们的特征随记录增多逐步揭示。</p>` + codexHTML(); $('#pane').innerHTML = W.sp(h); return; }
+    const TMAX = Math.max(W.present, today().y);
+    for (const cid of kc) {
+      const c = civOf(cid), evs = civEvents(cid), got = evs.filter((e) => disc.has(e.id));
+      const types = new Set(got.map((e) => e.type));
+      const arch = st.archived.includes(cid);
+      const foundKnown = got.some((e) => (e.type === 'found' || e.type === 'schism') && e.civ === cid) || arch;
+      const end = got.find((e) => e.civ === cid && (e.type === 'collapse' || e.type === 'vanish'));
+      const alive = aliveNow(c);
+      const seenAlive = alive && (arch || got.some((e) => e.live) || st.visited.some((v) => ownerNow[v] === cid));
+      const unk = (v) => `<dd class="unk">${v || '未知'}</dd>`;
+      const home = plName(c.home[0], c.home[1]);
+      let fate;
+      if (end) fate = end.live ? `<dd>${c.fate}，${evDate(end)}</dd>` : `<dd>${c.fate}，约纪元 ${c.endYear} 年</dd>`;
+      else if (seenAlive) fate = `<dd class="alive">仍然存续 · 领土 ${ownerNow.filter((o) => o === cid).length} 个星系</dd>`;
+      else fate = unk('不明');
+      const span0 = Math.min(...got.map((e) => e.y)), span1 = Math.max(...got.map((e) => e.y));
+      const spKnown = foundKnown || got.length >= 2;
+      h += `<div class="civ" style="--c:${c.color}"><h3>${c.who}${spKnown ? `<span class="sp">${c.species}</span>` : ''}</h3><dl>
+        <dt>物种</dt>${spKnown ? `<dd>${c.species}<span class="sub">${c.sp.desc}</span></dd>` : unk()}
+        <dt>${c.parent != null ? '起源' : '母星'}</dt>${foundKnown ? `<dd>${c.parent != null ? `自${civOf(c.parent).who}分离 · ${home}` : home}</dd>` : unk()}
+        <dt>记录</dt>${spKnown ? `<dd>${c.sp.script} · 命名${c.langLabel.replace('近似', '近似')}</dd>` : unk()}
+        <dt>文化</dt>${got.length >= 4 || arch ? `<dd>${c.culture.join('；')}</dd>` : unk('需要更多记录')}
+        <dt>政体</dt>${got.length >= 3 || arch ? `<dd>${polityNow(c)}${alive ? '' : '（末期）'}</dd>` : unk('需要更多记录')}
+        <dt>取向</dt>${got.length >= 5 || arch ? `<dd>${c.ethos} · ${W.ETHOS_DESC[c.ethos]}</dd>` : unk('需要更多记录')}
+        <dt>现状</dt>${fate}
+      </dl>
+      <div class="track"><div class="axis"></div><div class="span" style="left:${span0 / TMAX * 100}%;width:${Math.max(0.6, (span1 - span0) / TMAX * 100)}%"></div>
+      ${got.map((e) => `<div class="dot" style="left:${Math.min(100, e.y / TMAX * 100)}%" title="${e.y} 年"></div>`).join('')}</div>
+      <div class="ticks"><span>0</span><span>1000</span><span>2000</span><span>${W.present}</span></div>
+      <div class="cnt">已复原 ${got.length} / ${evs.length} 条相关记录</div></div>`;
+    }
+    h += codexHTML();
+    $('#pane').innerHTML = W.sp(h);
+  }
+  // 物种图鉴：识别出某个文明的物种后点亮对应条目
+  function codexHTML() {
+    const seen = new Map();
+    for (const cid of knownCivs()) {
+      const c = civOf(cid), got = civEvents(cid).filter((e) => disc.has(e.id));
+      const ok = st.archived.includes(cid) || got.length >= 2 || got.some((e) => (e.type === 'found' || e.type === 'schism') && e.civ === cid);
+      if (ok) { const L = seen.get(c.sp.id) || []; L.push(cid); seen.set(c.sp.id, L); }
+    }
+    const inGalaxy = new Set(W.civs.map((c) => c.sp.id));
+    let h = `<div class="codex"><div class="eyebrow">物种图鉴</div><div class="sysname" style="font-size:20px">${seen.size} / ${W.SPECIES.length}</div>
+      <p class="note" style="margin:4px 0 10px">这片星系中出现过 ${inGalaxy.size} 个物种。识别出一个文明的物种后，对应条目会点亮。</p><div class="cgrid">`;
+    const order = [...W.SPECIES].sort((a, b) => (seen.has(b.id) ? 1 : 0) - (seen.has(a.id) ? 1 : 0));
+    for (const x of order) {
+      const L = seen.get(x.id);
+      h += L ? `<div class="centry"><b>${x.label}</b><span class="cwho">称作「${x.who}」 · ${x.script}</span><p>${x.desc}</p><span class="cciv">${L.map(civTag).join(' ')}</span></div>`
+             : `<div class="centry dim"><b>？？？</b><p>${inGalaxy.has(x.id) ? '尚未识别' : '这片星系中似乎没有这个物种'}</p></div>`;
+    }
+    return h + `</div></div>`;
+  }
+  function renderAbout() {
+    const s = W.stats;
+    $('#pane').innerHTML = `<div class="about">
+      <h2>一个种子，一片星域</h2>
+      <p>这里没有存储任何星球数据。输入框里的种子经过哈希，变成一串确定的伪随机数；每个星系又用 <code>种子 + 编号</code> 得到自己的随机数序列。同一个种子永远生成同一片星域，换一个种子就是另一片宇宙。</p>
+      <div class="stats">
+        <div><b>${s.systems}</b><span>恒星系</span></div><div><b>${s.planets}</b><span>行星</span></div>
+        <div><b>${s.habitable}</b><span>宜居行星</span></div><div><b>${s.civs}</b><span>文明（含分裂）</span></div>
+        <div><b>${s.events}</b><span>历史事件</span></div><div><b>${s.ms.toFixed(0)} ms</b><span>生成并推演 ${W.present} 年</span></div>
+      </div>
+      <h2>一整个星系</h2>
+      <p>宇宙是一个完整的螺旋星系：约一千个恒星系沿着几条旋臂分布，臂间稀疏，中心是超大质量黑洞。所有文明在同一张图上推演同一段历史，会越过星区边界扩张、接触和交战。星区（A1 到 F6）只是方便定位的网格编号。拖动星图可以平移，滚轮或双指可以缩放，右下角的按钮可以回到当前位置或纵览全星系，左上角的小地图点一下就能把视野移过去。</p>
+      <h2>名字也是线索</h2>
+      <p>每个文明分到一种命名语言和一种记录方式（文字、符文、信息素刻痕、晶体生长纹……）（音节表、辅音、元音和词尾的组合）。一个星系在第一次被某个文明占据时，用这个文明的语言命名；从未被占据的星系只有星表编号。所以在星图上，一片读音相近的星名往往就是同一个文明的旧疆域。分裂出来的文明沿用母文明的语言。</p>
+      <h2>属性按因果推导</h2>
+      <p>每一层只在上一层给定的范围内随机：</p>
+      <pre>恒星类型（按真实比例，红矮星最多）
+ → 光度 → 各轨道的平衡温度
+ → 行星质量 → 能否保有大气 → 温室效应修正
+ → 气候（海洋、荒漠、冻原……）→ 是否宜居
+ → 母星环境 → 能在这里诞生的物种</pre>
+      <p>物种共有 ${W.SPECIES.length} 类，取材于科幻和奇幻里常见的原型，名字与细节都是原创的：类人种族、精灵、矮人、兽人、猫裔、翼族，虫族与吞噬虫群，金属生命、数字意识、硅基晶族，菌丝网络、光合林民，深海种族、智慧头足类、覆盖整颗行星的单一海洋意识，冰原种族、潮汐锁定行星上的昏线族，气态巨行星里的浮游族和无实体意识，栖居在恒星日冕中的恒星之灵，只在死亡恒星旁繁衍的辐食族，寄居宿主体内的共生体，能模仿一切的拟形族，以及早在多数种族诞生之前就已消失的上古先行者。</p>
+      <p>每个物种只会诞生在特定环境里，有的还挑恒星：光合族需要明亮的恒星，昏线族只出现在红矮星和橙矮星周围的潮汐锁定行星上，辐食族只在脉冲星、白矮星和黑洞附近。物种也影响历史：兽人、龙族和吞噬虫群好战，猫裔和拟形族更容易与人交好，数字意识和恒星之灵不受瘟疫影响、科技发展快，也更早从记录中消失；上古先行者总是最早出现，以很高的科技起步。</p>
+      <h2>历史是推演出来的</h2>
+      <p>每个文明有科技、稳定度、领土和对外关系。时间以 50 年为一步推进，每一步检查哪些事件满足触发条件：领土相邻会产生接触，关系恶化会引发战争，贸易航线会带来瘟疫，稳定度过低会导致内乱、政变、分裂或瓦解。</p>
+      <p>事件发生时会记下它的起因。你在编年史里看到的「起因」链接，就是推演时真实存在的因果，而不是事后拼接的文字。</p>
+      <h2>你看到的只是碎片</h2>
+      <p>历史推演到纪元 ${W.present} 年为止，你的探索从这一年的第 1 天开始。仍然存续的文明不会停下：生成星域时，它们的未来十年也以 10 天为一步推演好了，你的日期走到哪一天，那一天之前的事就真的发生了。他们会殖民（并给新星系命名）、开战、签约、分裂，也可能崩溃。发生在你扫描范围内的事件，以及你查阅过档案的文明的消息，会以「截获通讯」的形式进入编年史；其余的要靠你去现场勘测。每次航行按距离消耗天数，勘测一处遗迹 2 天，查阅档案 1 天，顶栏会显示当前日期，编年史里的「多少年前」也按当前日期计算。</p>
+      <p>全部历史在生成时就已确定，但每条记录只留在一个地点。你的工作是从遗迹里把它们找回来，并把起因与结果对上。</p>
+    </div>`;
+  }
+  function renderPane() {
+    document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === tab));
+    const kc = knownCivs().length;
+    $('#t-chron').innerHTML = `编年史<span class="n">${disc.size}</span>`;
+    $('#t-civ').innerHTML = `文明<span class="n">${kc}</span>`;
+    ({ sys: renderSys, chron: renderChron, civ: renderCivs, about: renderAbout })[tab]();
+  }
+  function bindPane() {
+    const p = $('#pane');
+    p.querySelectorAll('[data-survey]').forEach((b) => (b.onclick = () => survey(b.dataset.survey)));
+    p.querySelectorAll('[data-arch]').forEach((b) => (b.onclick = () => archive(+b.dataset.arch)));
+    p.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => travel(+b.dataset.go)));
+    p.querySelectorAll('[data-loc]').forEach((b) => (b.onclick = () => { freshIds = new Set(); select(+b.dataset.loc, 'sys'); }));
+    p.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { filter = b.dataset.f === '' ? null : +b.dataset.f; renderPane(); }));
+  }
+  function renderAll() { renderStatus(); renderBar(); renderPane(); draw(); freshIds = new Set(); }
+
+  /* ---------- 星图：可平移、缩放的世界坐标视图 ---------- */
+  const cv = $('#map'), ctx = cv.getContext('2d');
+  let view = { k: 1, cx: 0, cy: 0, w: 0, h: 0 }, cam = null;
+  const KDEF = () => Math.max(0.45, Math.min(1.3, Math.min(view.w / 1000, (view.h - 90) / 640)));
+  const KMIN = () => Math.min(view.w, view.h - 60) / (W.galaxy.GR * 2.2);
+  const KMAX = () => KDEF() * 3;
+  const clampK = (k) => Math.max(KMIN(), Math.min(KMAX(), k));
+  const P = (x, y) => [view.w / 2 + (x - view.cx) * view.k, view.h / 2 + (y - view.cy) * view.k];
+  const toWorld = (px, py) => [view.cx + (px - view.w / 2) / view.k, view.cy + (py - view.h / 2) / view.k];
+  const SEC = () => W.W / 6;
+  const secName = (s) => 'ABCDEF'[Math.max(0, Math.min(5, Math.floor(s.x / SEC())))] + (Math.max(0, Math.min(5, Math.floor(s.y / SEC()))) + 1);
+  function fit(recenter) {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    view.w = r.width; view.h = r.height;
+    if (!W) return;
+    if (recenter) { const s = W.systems[st.cur]; view.k = KDEF(); view.cx = s.x; view.cy = s.y; cam = null; }
+    view.k = clampK(view.k);
+    draw();
+  }
+  function camTo(cx, cy, k, dur = 600) {
+    k = clampK(k ?? view.k);
+    if (reduce || !dur) { view.cx = cx; view.cy = cy; view.k = k; cam = null; return; }
+    cam = { a: { cx: view.cx, cy: view.cy, k: view.k }, b: { cx, cy, k }, t0: performance.now(), dur };
+  }
+  // 航行时，目标离开视野中心区域就让镜头跟过去
+  function follow(sid, dur) {
+    const s = W.systems[sid], [x, y] = P(s.x, s.y);
+    if (x < view.w * 0.2 || x > view.w * 0.8 || y < view.h * 0.2 || y > view.h * 0.75) camTo(s.x, s.y, view.k, dur || 600);
+  }
+
+  // 背景三层：屏幕空间的深蓝底色、随视角缓慢移动的远景星场、世界空间的星系光晕
+  let bgCv = null, bgKey = '', starTile = null, glowCv = null;
+  function buildBg() {
+    const key = view.w + 'x' + view.h;
+    if (key !== bgKey || !bgCv) {
+      bgKey = key;
+      const dpr = window.devicePixelRatio || 1, w = view.w, h = view.h;
+      bgCv = document.createElement('canvas'); bgCv.width = Math.round(w * dpr); bgCv.height = Math.round(h * dpr);
+      const b = bgCv.getContext('2d'); b.scale(dpr, dpr);
+      const g = b.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.45, Math.max(w, h) * 0.85);
+      g.addColorStop(0, '#16336c'); g.addColorStop(0.55, '#0e2452'); g.addColorStop(1, '#060f28');
+      b.fillStyle = g; b.fillRect(0, 0, w, h);
+    }
+    if (!starTile) {
+      starTile = document.createElement('canvas'); starTile.width = starTile.height = 512;
+      const b = starTile.getContext('2d'), sr = Gen.R('遗星', 'starfield');
+      for (let i = 0; i < 260; i++) {
+        const x = sr.f() * 512, y = sr.f() * 512, m = Math.pow(sr.f(), 3);
+        b.fillStyle = `rgba(${sr.chance(0.2) ? '255,236,210' : '214,228,255'},${0.1 + m * 0.42})`;
+        b.beginPath(); b.arc(x, y, 0.4 + m * 0.8, 0, 7); b.fill();
+      }
+    }
+    if (!glowCv) {
+      const G = 220, gal = W.galaxy;
+      glowCv = document.createElement('canvas'); glowCv.width = glowCv.height = G;
+      const b = glowCv.getContext('2d'), img = b.createImageData(G, G);
+      for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
+        const x = ((i + 0.5) / G) * W.W, y = ((j + 0.5) / G) * W.H, dd = gal.density(x, y);
+        const rr = Math.hypot(x - gal.CX, y - gal.CY) / gal.GR, warm = Math.exp(-rr * 6);
+        const o = (j * G + i) * 4;
+        img.data[o] = 70 + warm * 185; img.data[o + 1] = 105 + warm * 95; img.data[o + 2] = 225 - warm * 80;
+        img.data[o + 3] = Math.min(255, Math.pow(dd, 1.3) * 120 + warm * 90);
+      }
+      b.putImageData(img, 0, 0);
+    }
+  }
+
+  function draw(now = performance.now()) {
+    if (!W || !view.w) return;
+    if (cam) {
+      const t = Math.min(1, (now - cam.t0) / cam.dur), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      view.cx = cam.a.cx + (cam.b.cx - cam.a.cx) * e; view.cy = cam.a.cy + (cam.b.cy - cam.a.cy) * e;
+      view.k = cam.a.k * Math.pow(cam.b.k / cam.a.k, e);
+      if (t >= 1) cam = null;
+    }
+    const k = view.k, w = view.w, h = view.h;
+    buildBg();
+    ctx.drawImage(bgCv, 0, 0, w, h);
+    // 远景星场：视差系数 0.12
+    const ox = (((-view.cx * k * 0.12) % 512) + 512) % 512, oy = (((-view.cy * k * 0.12) % 512) + 512) % 512;
+    for (let x = ox - 512; x < w; x += 512) for (let y = oy - 512; y < h; y += 512) ctx.drawImage(starTile, x, y);
+    // 星系光晕
+    const [gx, gy] = P(0, 0);
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(glowCv, gx, gy, W.W * k, W.H * k); ctx.restore();
+    // 星区网格
+    const sec = SEC();
+    ctx.strokeStyle = 'rgba(160,190,240,0.07)'; ctx.lineWidth = 1;
+    ctx.font = '10.5px "IBM Plex Mono", monospace'; ctx.fillStyle = 'rgba(170,196,240,0.4)';
+    for (let i = 0; i <= 6; i++) {
+      const [x1, y1] = P(i * sec, 0), [x2, y2] = P(i * sec, W.H); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      const [x3, y3] = P(0, i * sec), [x4, y4] = P(W.W, i * sec); ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke();
+    }
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { const [x, y] = P(i * sec, j * sec); if (x > -40 && x < w && y > -20 && y < h) ctx.fillText('ABCDEF'[i] + (j + 1), x + 6, y + 14); }
+    const vis = (x, y, m = 40) => x > -m && x < w + m && y > -m && y < h + m;
+    // 古航道
+    if (k > 0.22) {
+      ctx.strokeStyle = `rgba(160,190,240,${k > 0.5 ? 0.08 : 0.05})`; ctx.lineWidth = 1; ctx.beginPath();
+      for (const [a, b] of W.lanes) {
+        const A = W.systems[a], B = W.systems[b], [x1, y1] = P(A.x, A.y), [x2, y2] = P(B.x, B.y);
+        if (!vis(x1, y1, 200) && !vis(x2, y2, 200)) continue;
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+    }
+    // 扫描范围
+    ctx.fillStyle = 'rgba(143,211,255,0.035)';
+    ctx.beginPath(); for (const v of st.visited) { const [x, y] = P(W.systems[v].x, W.systems[v].y); if (!vis(x, y, SCAN * k)) continue; ctx.moveTo(x + SCAN * k, y); ctx.arc(x, y, SCAN * k, 0, Math.PI * 2); } ctx.fill();
+    // 你的航迹
+    if (st.path.length > 1) {
+      ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(143,211,255,0.7)'; ctx.lineWidth = 1.3; ctx.beginPath();
+      st.path.forEach((id, i) => { const [x, y] = P(W.systems[id].x, W.systems[id].y); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    // 存续文明的当前疆域（只显示扫描范围内的星系）
+    for (const s of W.systems) {
+      const o = ownerNow[s.id];
+      if (o == null || !knownArr[s.id] || !aliveNow(W.civs[o])) continue;
+      const [x, y] = P(s.x, s.y); if (!vis(x, y, 60)) continue;
+      const R = 30 * k + 8, g = ctx.createRadialGradient(x, y, 0, x, y, R);
+      g.addColorStop(0, W.civs[o].color + '38'); g.addColorStop(1, W.civs[o].color + '00');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.fill();
+    }
+    // 恒星。缩得很小时只画光点，名字只标去过的星系
+    const lod = k < 0.32;
+    const labelAll = k >= 0.55;
+    for (const s of W.systems) {
+      const [x, y] = P(s.x, s.y); if (!vis(x, y)) continue;
+      const star = W.STARS[s.type], v = visArr[s.id] === 1, kn = knownArr[s.id] === 1;
+      const sc = Math.max(0.45, 0.7 + k * 0.5) * (v ? 1 : 0.9);
+      ctx.globalAlpha = v ? 1 : kn ? 0.85 : 0.45;
+      if (lod && s.type !== 'S') { ctx.fillStyle = star.color; ctx.beginPath(); ctx.arc(x, y, v ? 1.9 : 1.2, 0, 7); ctx.fill(); }
+      else drawStar(star, x, y, s.type === 'S' ? Math.max(0.8, k * 1.4) : sc, now);
+      ctx.globalAlpha = 1;
+      const rad = lod ? 3 : 7 * sc;
+      const civs = civAtArr[s.id];
+      if (civs.length && !lod) {
+        const gap = civs.length > 1 ? 0.35 : 0, seg = (Math.PI * 2) / civs.length;
+        ctx.lineWidth = 1.6;
+        civs.forEach((cid, i) => { ctx.strokeStyle = W.civs[cid].color; ctx.beginPath(); ctx.arc(x, y, rad + 3, -Math.PI / 2 + i * seg + gap / 2, -Math.PI / 2 + (i + 1) * seg - gap / 2); ctx.stroke(); });
+      }
+      if (kn && unsArr[s.id]) {
+        ctx.fillStyle = '#ffd27a'; const dx = x + rad + (lod ? 2 : 4), dy = y + rad + 1, q = lod ? 2.6 : 3.5;
+        ctx.beginPath(); ctx.moveTo(dx, dy - q); ctx.lineTo(dx + q, dy); ctx.lineTo(dx, dy + q); ctx.lineTo(dx - q, dy); ctx.closePath(); ctx.fill();
+      }
+      const isCur = s.id === st.cur || s.id === st.sel;
+      if (s.type === 'S' || isCur || (kn && labelAll) || (v && k >= 0.3)) {
+        ctx.font = isCatalog(s.id) ? '10.5px "IBM Plex Mono", monospace' : (s.id === st.cur ? '600 ' : '') + '12.5px "Noto Serif SC", serif';
+        ctx.fillStyle = s.id === st.cur ? '#ffffff' : v ? 'rgba(234,242,255,0.88)' : 'rgba(152,174,212,0.8)';
+        ctx.fillText(nameOf(s.id), x + rad + 5, y - rad + 1);
+      }
+    }
+    // 选中框
+    if (st.sel !== st.cur) {
+      const s = W.systems[st.sel], [x, y] = P(s.x, s.y), r = 11, l = 4;
+      ctx.strokeStyle = '#eaf2ff'; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        ctx.moveTo(x + dx * r, y + dy * (r - l)); ctx.lineTo(x + dx * r, y + dy * r); ctx.lineTo(x + dx * (r - l), y + dy * r);
+      }
+      ctx.stroke();
+    }
+    // 当前位置（含航行动画）
+    let [cx, cy] = P(W.systems[st.cur].x, W.systems[st.cur].y);
+    if (anim) {
+      const t = Math.min(1, (now - anim.t0) / anim.dur), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const a = W.systems[anim.from], b = W.systems[anim.to];
+      [cx, cy] = P(a.x + (b.x - a.x) * e, a.y + (b.y - a.y) * e);
+      if (t >= 1) anim = null;
+    }
+    const pulse = reduce ? 0 : (Math.sin(now / 520) + 1) / 2;
+    ctx.strokeStyle = `rgba(143,211,255,${0.95 - pulse * 0.45})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 12 + pulse * 3, 0, 7); ctx.stroke();
+    // 当前位置在视野外时，在边缘画一个指向它的箭头
+    if (!vis(cx, cy, -10)) {
+      const ang = Math.atan2(cy - h / 2, cx - w / 2), ex = Math.max(18, Math.min(w - 18, w / 2 + Math.cos(ang) * w)), ey = Math.max(18, Math.min(h - 18, h / 2 + Math.sin(ang) * h));
+      ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang); ctx.fillStyle = '#8fd3ff';
+      ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -6); ctx.lineTo(-3, 0); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    drawMini();
+  }
+  function drawStar(star, x, y, sc, now) {
+    const c = star.color, g = star.glyph;
+    const glow = (r, a) => { const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, c + a); gr.addColorStop(1, c + '00'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
+    const disc = (r, col) => { ctx.fillStyle = col || c; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
+    const rays = (n, L, w, off = 0) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); for (let i = 0; i < n; i++) { const a = off + (i * Math.PI * 2) / n; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); } ctx.stroke(); };
+    if (g === 'dwarf') { glow(6 * sc, '40'); disc(2.6 * sc); }
+    else if (g === 'sun') { glow(10 * sc, '50'); disc(3.4 * sc); }
+    else if (g === 'bright') { glow(10 * sc, '45'); rays(4, 9 * sc, 0.8); disc(3.4 * sc); }
+    else if (g === 'giant') { glow(15 * sc, '55'); rays(4, 12 * sc, 1); rays(4, 7 * sc, 0.8, Math.PI / 4); disc(4.4 * sc); }
+    else if (g === 'white') { ctx.strokeStyle = c; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(x, y, 5 * sc, 0, 7); ctx.stroke(); disc(1.8 * sc); }
+    else if (g === 'pulsar') {
+      const a = reduce ? 0.4 : now / 900;
+      ctx.fillStyle = c + 'bb';
+      for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a + s * 0.12 + (s < 0 ? Math.PI : 0)) * 11 * sc, y + Math.sin(a + s * 0.12 + (s < 0 ? Math.PI : 0)) * 11 * sc); ctx.lineTo(x + Math.cos(a - s * 0.12 + (s < 0 ? Math.PI : 0)) * 11 * sc, y + Math.sin(a - s * 0.12 + (s < 0 ? Math.PI : 0)) * 11 * sc); ctx.closePath(); ctx.fill(); }
+      disc(1.8 * sc, '#ffffff');
+    }
+    else if (g === 'hole') {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-0.3);
+      ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 0, 9 * sc, 3.2 * sc, 0, 0, 7); ctx.stroke(); ctx.restore();
+      disc(3.8 * sc, '#050a18'); ctx.strokeStyle = c + '99'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(x, y, 3.8 * sc, 0, 7); ctx.stroke();
+    }
+    else if (g === 'core') {
+      glow(46 * sc, '70'); glow(18 * sc, 'aa');
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-0.35);
+      const rot = reduce ? 0 : now / 4000;
+      for (let i = 0; i < 3; i++) { ctx.strokeStyle = c + ['dd', '88', '44'][i]; ctx.lineWidth = 2.2 - i * 0.6; ctx.beginPath(); ctx.ellipse(0, 0, (16 + i * 7) * sc, (5 + i * 2.2) * sc, rot * (i % 2 ? -1 : 1) * 0.05, 0, 7); ctx.stroke(); }
+      ctx.restore();
+      disc(7 * sc, '#030712'); ctx.strokeStyle = c; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, 7 * sc, 0, 7); ctx.stroke();
+    }
+  }
+  // 全星系小地图
+  const mm = $('#mm'), mctx = mm.getContext('2d');
+  function drawMini() {
+    const r = mm.getBoundingClientRect(); if (!r.width) return;
+    const dpr = window.devicePixelRatio || 1, S = r.width;
+    if (mm.width !== Math.round(S * dpr)) { mm.width = mm.height = Math.round(S * dpr); }
+    mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mctx.fillStyle = '#071230'; mctx.fillRect(0, 0, S, S);
+    mctx.globalCompositeOperation = 'lighter'; mctx.drawImage(glowCv, 0, 0, S, S); mctx.drawImage(glowCv, 0, 0, S, S); mctx.globalCompositeOperation = 'source-over';
+    const f = S / W.W;
+    mctx.fillStyle = 'rgba(255,210,122,0.9)';
+    for (const x of W.systems) if (knownArr[x.id] && unsArr[x.id]) mctx.fillRect(x.x * f - 1, x.y * f - 1, 2, 2);
+    mctx.fillStyle = '#8fd3ff';
+    for (const v of st.visited) { const x = W.systems[v]; mctx.fillRect(x.x * f - 1, x.y * f - 1, 2.2, 2.2); }
+    const c = W.systems[st.cur]; mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.arc(c.x * f, c.y * f, 2.6, 0, 7); mctx.fill();
+    const [x0, y0] = toWorld(0, 0), [x1, y1] = toWorld(view.w, view.h);
+    mctx.strokeStyle = 'rgba(234,242,255,0.85)'; mctx.lineWidth = 1; mctx.strokeRect(x0 * f, y0 * f, (x1 - x0) * f, (y1 - y0) * f);
+  }
+  function loop(t) { draw(t); requestAnimationFrame(loop); }
+
+  // ---- 交互：拖动平移、滚轮与双指缩放、点击选择 ----
+  const ptrs = new Map();
+  let drag = null, pinch = null;
+  const local = (e) => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  function zoomAt(px, py, k2) {
+    k2 = clampK(k2);
+    const [wx, wy] = toWorld(px, py);
+    view.k = k2; view.cx = wx - (px - view.w / 2) / k2; view.cy = wy - (py - view.h / 2) / k2;
+    cam = null; draw();
+  }
+  cv.addEventListener('pointerdown', (e) => {
+    cv.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, local(e));
+    if (ptrs.size === 1) { const [x, y] = local(e); drag = { x, y, cx: view.cx, cy: view.cy, moved: false }; cam = null; }
+    else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: view.k }; if (drag) drag.moved = true;
+    }
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, local(e));
+    if (pinch && ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, pinch.k * (d / pinch.d));
+    } else if (drag) {
+      const [x, y] = local(e), dx = x - drag.x, dy = y - drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
+      if (drag.moved) { view.cx = drag.cx - dx / view.k; view.cy = drag.cy - dy / view.k; cv.classList.add('dragging'); draw(); }
+    }
+  });
+  const end = (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    const single = ptrs.size === 1;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (single && drag && !drag.moved && e.type === 'pointerup') clickAt(...local(e));
+    if (!ptrs.size) { drag = null; cv.classList.remove('dragging'); }
+  };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = local(e); zoomAt(x, y, view.k * Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
+  function clickAt(mx, my) {
+    let best = null, bd = 22;
+    for (const s of W.systems) { const [px, py] = P(s.x, s.y); const d = Math.hypot(px - mx, py - my); if (d < bd) { bd = d; best = s.id; } }
+    if (best == null) return;
+    if (best === st.sel && best !== st.cur) travel(best);
+    else select(best, 'sys');
+  }
+  mm.addEventListener('click', (e) => {
+    const r = mm.getBoundingClientRect(), f = W.W / r.width;
+    camTo((e.clientX - r.left) * f, (e.clientY - r.top) * f, view.k, 500);
+  });
+  $('#z-in').onclick = () => camTo(view.cx, view.cy, view.k * 1.6, 300);
+  $('#z-out').onclick = () => camTo(view.cx, view.cy, view.k / 1.6, 300);
+  $('#z-me').onclick = () => { const s = W.systems[st.cur]; camTo(s.x, s.y, KDEF(), 600); };
+  $('#z-all').onclick = () => camTo(W.galaxy.CX, W.galaxy.CY, KMIN(), 700);
+
+  /* ---------- 启动 ---------- */
+  document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; freshIds = new Set(); renderPane(); }));
+  $('#seedform').addEventListener('submit', (e) => { e.preventDefault(); const v = $('#seed').value.trim() || '001'; tab = 'sys'; load(v); });
+  $('#rand').onclick = () => { const v = Math.random().toString(36).slice(2, 7); tab = 'sys'; load(v, true); };
+  new ResizeObserver(() => fit()).observe($('#mapwrap'));
+  load(store.get(LAST) || '遗星-001');
+  if (!reduce) requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
