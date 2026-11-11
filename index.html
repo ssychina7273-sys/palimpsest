@@ -97,6 +97,8 @@ canvas#map { position: absolute; inset: 0; width: 100%; height: 100%; cursor: cr
 .mapbar .ico { margin-right: -4px; }
 .civ h3 .sp { font-family: var(--sans); font-weight: 400; font-size: 12px; letter-spacing: 0; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 7px; }
 .civ dd .sub { display: block; color: var(--muted); font-size: 12px; }
+.civ dd .fig { display: inline-block; margin-right: 12px; }
+.civ dd .fig small { margin-left: 5px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .toast {
   position: absolute; top: 12px; right: 14px; max-width: min(320px, calc(100% - 28px));
   background: var(--ink-3); border: 1px solid var(--brass-dim); border-radius: 6px; padding: 8px 12px; font-size: 13px;
@@ -155,6 +157,7 @@ canvas#map.dragging { cursor: grabbing; }
 .tag { font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid; }
 .tag.hab { color: #92e3ad; border-color: #2f6b5a; }
 .tag.sig { color: var(--signal); border-color: #8a7444; }
+.tag.won { color: #c9a8ff; border-color: #5b4a8c; }
 .planet .data { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .planet .do { margin-top: 8px; }
 
@@ -278,6 +281,7 @@ canvas#map.dragging { cursor: grabbing; }
    2) 恒星系：恒星类型 → 行星轨道 → 温度 → 大气 → 气候
    3) 文明：从宜居行星中选出母星，物种形态由母星气候决定
    4) 历史：按 50 年一步推演，事件由条件触发，并记录"起因"
+   5) 文本与年份抖动使用独立的随机数序列，改写描述不会改变历史本身
 */
 const Gen = (() => {
   function xmur3(str) {
@@ -510,7 +514,26 @@ const Gen = (() => {
   const SP_DEF = { col: 1, tech: 0, plague: 1, stab: 0.56, vanish: 8.6, deplete: 1, golden: 1, ethos: null, hawk: 1, amity: 0, tech0: 1, stars: null, early: false,
     plagueSum: '一场瘟疫在{P}境内蔓延', plagueTrace: '一片大型墓地，墓碑上的年份集中在短短数年之内。',
     unrest: '首都街道上留有路障残骸。墙上的标语层层覆盖，至少属于三个不同的派别。' };
+  const UNREST_ALT = [
+    '议事建筑的大门是从外面被撞开的。里面的座席分成了两半，中间的过道上堆着临时搭起的掩体。',
+    '一处广场的地面上留着成片的焦痕。周围建筑的窗户全部用同一种板材封死，板材上的编号是连续的。',
+    '官方档案在这一年出现了两套，纪年相同，内容互相矛盾。两套档案的封印都是真的。',
+  ];
   for (const x of SPECIES) for (const k in SP_DEF) if (x[k] === undefined) x[k] = SP_DEF[k];
+  // 形态类别决定遗迹的写法；fig 决定这个物种有没有留名的个体；life 是一个个体活跃的步数（每步 50 年）
+  const SP_KIND = { insect: 'hive', devourer: 'hive', machine: 'mech', upload: 'mech', energy: 'field', stellar: 'field', floater: 'field', fungal: 'mind', plant: 'mind', oceanmind: 'mind', silicon: 'mind' };
+  const SP_FIG = { insect: 'ord', machine: 'code', upload: 'code', fungal: null, oceanmind: null, devourer: null, energy: null, stellar: null, plant: null };
+  const SP_LIFE = { elf: 12, dragon: 30, silicon: 999, machine: 999, upload: 999, precursor: 6, cryo: 3, dwarf: 3, symbiont: 8, insect: 2 };
+  const SP_RULER = { dragon: '龙王', insect: '母后' };
+  const SP_SETTLE2 = {
+    insect: '的地下有一片尚未完工的巢室，通道的走向与母巢如出一辙。最深处的孵化室是空的。',
+    devourer: '的海洋被抽干了一半，裸露的海床上留着一排排消化池的轮廓。',
+    machine: '的轨道上有一圈自动采矿机，仍按原定程序往返于同一条已经采空的矿带。',
+    fungal: '的地表下有一层休眠的菌丝，范围覆盖了半个大陆。取样显示，它是从别处移植来的。',
+    plant: '的赤道上有一圈人工栽种的林带，每一棵树的间距都相同。最老的几棵已经枯死，仍然立着。',
+    upload: '的极地有一座散热塔，塔下的存储阵列只写入了很小一部分，其余至今是空白的。',
+  };
+  for (const x of SPECIES) { x.settle2 = SP_SETTLE2[x.id] || null; x.kind = SP_KIND[x.id] || 'flesh'; x.fig = x.id in SP_FIG ? SP_FIG[x.id] : 'name'; x.life = SP_LIFE[x.id] || 1; x.rulerT = SP_RULER[x.id] || null; }
   const CLIMATE_T = { 温带: 288, 草原: 295, 海洋: 285, 群岛: 290, 雨林: 300, 荒漠: 340, 冻原: 230, 冰封世界: 170, 冰冷岩体: 150, 荒芜岩体: 260, 熔岩世界: 700, 灼烧岩体: 520, 温室炼狱: 720 };
   const CLIMATE_ATMO = { 冰冷岩体: '无', 荒芜岩体: '无', 灼烧岩体: '无', 熔岩世界: '稀薄', 温室炼狱: '浓厚', 冻原: '稀薄', 冰封世界: '稀薄' };
   
@@ -587,7 +610,7 @@ const Gen = (() => {
     return out;
   }
 
-  const sp = (t) => t.replace(/([A-Za-z\u2160-\u2167])(?=[\u4e00-\u9fff])/g, '$1 ').replace(/([\u4e00-\u9fff])(?=[A-Za-z\u2160-\u2167])/g, '$1 ');
+  const sp = (t) => t.replace(/([A-Za-z0-9\u2160-\u2167])(?=[\u4e00-\u9fff])/g, '$1 ').replace(/([\u4e00-\u9fff])(?=[A-Za-z0-9\u2160-\u2167])/g, '$1 ');
   // 文明配色：按黄金角在色环上取色，保证几十个文明也互相可辨
   function civColor(i) {
     const h = ((i * 137.508 + 12) % 360) / 360, sat = 0.72, l = i % 2 ? 0.7 : 0.76;
@@ -682,6 +705,7 @@ const Gen = (() => {
       return dist;
     };
 
+
     // ===== 文明 =====
     const cr = R(seed, 'civs');
     const civCount = Math.round(n / 40) + cr.int(-2, 2);
@@ -694,13 +718,16 @@ const Gen = (() => {
       const free = (c) => !homes.some((h) => h[0] === c[0]);
       const starOk = (c) => (spc.stars ? spc.stars.includes(systems[c[0]].type) : !'BNH'.includes(systems[c[0]].type));
       const cand = cr.shuffle(allPl.filter((c) => free(c) && starOk(c) && spc.homes.includes(systems[c[0]].planets[c[1]].climate)));
+      const minHop = (c) => { let m = Infinity; for (const h of homeHops) if (h[c[0]] < m) m = h[c[0]]; return m; };
       let pick = null;
-      for (const need of [6, 5, 4, 3, 2, 1]) { pick = cand.find((c) => homeHops.every((h) => h[c[0]] >= need)); if (pick) break; }
+      // 多数文明诞生在别的文明附近，形成几个彼此纠缠的区域；少数远离所有人，独自发展
+      if (i > 0 && cr.chance(0.72)) pick = cand.find((c) => { const m = minHop(c); return m >= 4 && m <= 7; });
+      if (!pick) for (const need of [10, 6, 5, 4, 3, 2, 1]) { pick = cand.find((c) => minHop(c) >= need); if (pick) break; }
       if (!pick) {
         // 找不到合适的母星时，改造一颗行星的环境
         let opts = cr.shuffle(allPl.filter((c) => free(c) && starOk(c)));
         if (!opts.length) opts = cr.shuffle(allPl.filter(free));
-        pick = opts.find((c) => homeHops.every((h) => h[c[0]] >= 4)) || opts[0];
+        pick = opts.find((c) => minHop(c) >= 4) || opts[0];
         const p = systems[pick[0]].planets[pick[1]], cl = spc.homes[0];
         p.climate = cl;
         if (cl.includes('气态') || cl === '冰巨星') { p.kind = cl === '冰巨星' ? 'ice' : 'gas'; p.atmo = '—'; }
@@ -708,23 +735,33 @@ const Gen = (() => {
       }
       homes.push(pick); homeSp.push(spc); homeHops.push(hops(pick[0]));
     }
+    // 每个星系 2 步、3 步航道以内的邻居：探测范围、越境殖民和战线都用它
+    const nearN = (k) => systems.map((s) => {
+      const dist = new Map([[s.id, 0]]), q = [s.id];
+      for (let qi = 0; qi < q.length; qi++) { const c = q[qi], dc = dist.get(c); if (dc >= k) continue; for (const m of adj[c]) if (!dist.has(m)) { dist.set(m, dc + 1); q.push(m); } }
+      return q.slice(1);
+    });
+    const near2 = nearN(2), near3 = nearN(3);
 
-    const civs = [];
+    const civs = [], figures = [];
     const langPool = cr.shuffle(LANGS);
+    // 文本与年份抖动专用的随机数：改写描述不会影响推演结果
+    const tx = R(seed, 'text');
+    const V = (a) => tx.pick(a);
+    const K = (c, o) => o[c.sp.kind] || o.any;
     // 星系在第一次被某个文明占据时，以该文明的语言命名
     const claim = (sid, c) => {
       const s = systems[sid];
       if (!s.catalog) return;
       const nr = R(seed, 'sysname', sid);
       let nm, g = 0;
-      do { const n = nr.int(2, 3); nm = langWord(nr, c.lang, n, n === 2 ? 0.55 : 0.1); } while ((!speakable(nm, 4, 10) || used.has(nm)) && g++ < 200);
+      do { const k = nr.int(2, 3); nm = langWord(nr, c.lang, k, k === 2 ? 0.55 : 0.1); } while ((!speakable(nm, 4, 10) || used.has(nm)) && g++ < 200);
       used.add(nm); s.name = nm; s.catalog = false; s.namedBy = c.id;
     };
     const makeCiv = (home, origin, parent, spc) => {
       const id = civs.length;
       const rr = R(seed, 'civ', id);
       const lang = parent ? parent.lang : langPool[id % langPool.length];
-      const syl = null, end = null;
       let name;
       do { name = langWord(rr, lang, rr.int(1, 2), parent ? 0.9 : 0.55); } while ((!speakable(name, 4, 8) || used.has(name)) && rr.f() < 0.999);
       used.add(name);
@@ -735,49 +772,70 @@ const Gen = (() => {
         culture: parent ? [parent.culture[0], rr.pick(S.cult.filter((x) => x !== parent.culture[0]))] : rr.shuffle(S.cult).slice(0, 2),
         society: rr.pick(S.pol),
         ethos: rr.pick(S.ethos || ETHOS),
-        home, origin, parent: parent ? parent.id : null, alive: true, endYear: null, fate: null,
+        home, cap: home.slice(), origin, parent: parent ? parent.id : null, alive: true, endYear: null, fate: null,
         tech: parent ? parent.tech : S.tech0, stab: 0.65, territory: new Set([home[0]]),
         space: !!parent, lastNeg: null, lastColony: null, events: [], contacted: new Set(),
-        trade: new Set(), rel: {}, unrestAt: -9999, dug: new Set(), founded: !!parent,
+        trade: new Set(), allies: new Set(), overlord: null, rel: {}, unrestAt: -9999, dug: new Set(), founded: !!parent,
+        figs: [], figNames: new Set(), ruler: null, missioned: new Set(), spied: new Set(), watching: {}, known: new Set(), wonderN: 0, warsWith: {},
       };
       civ.polity = () => civ.name + civ.society;
       civs.push(civ);
       return civ;
     };
-    homes.forEach((h, i) => makeCiv(h, i === 0 || homeSp[i].early ? cr.int(0, 3) * 50 : cr.int(0, 20) * 50, null, homeSp[i]));
+    // 约三成文明是后来者：它们崛起时，周围的星系可能早已有主
+    homes.forEach((h, i) => {
+      const early = i === 0 || homeSp[i].early;
+      makeCiv(h, early ? cr.int(0, 3) * 50 : cr.chance(0.3) ? cr.int(18, 40) * 50 : cr.int(0, 14) * 50, null, homeSp[i]);
+    });
+    const reserved = new Set(homes.map((h) => h[0]));
 
     // ===== 历史推演 =====
     const PRESENT = 3000, STEP = 50;
     const owner = systems.map(() => null);
     const ruins = systems.map(() => new Set());
     const events = [];
-    const contactEv = {};
-    const wars = [];
+    const contactEv = {}, tradeEvP = {}, allyEv = {};
+    const wars = [], wonders = [], relics = [];
     const pk = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
     const er = R(seed, 'history');
 
+    const sysN = (sid) => systems[sid].name;
     const plName = (sid, pl) => (pl < 0 ? systems[sid].name + '星系深空' : systems[sid].name + ' ' + ROMAN[pl]);
+    const solidAt = (sid, pl) => pl >= 0 && systems[sid].planets[pl].kind !== 'gas' && systems[sid].planets[pl].kind !== 'ice';
+    // 「X Ⅱ上」「X Ⅱ附近」「X星系深空」
+    const at = (sid, pl) => plName(sid, pl) + (pl < 0 ? '' : solidAt(sid, pl) ? '上' : '附近');
     const pickPlanet = (sid, prefer) => {
       const ps = systems[sid].planets;
       if (!ps.length) return -1;
       const solid = ps.filter((p) => p.kind !== 'gas' && p.kind !== 'ice');
       if (prefer === 'gas') { const g = ps.filter((p) => p.kind === 'gas' || p.kind === 'ice'); if (g.length) return er.pick(g).i; }
       if (prefer === 'hab') { const h = ps.filter((p) => p.hab); if (h.length) return er.pick(h).i; }
-      if (solid.length && (prefer === 'solid' || er.chance(0.8))) return er.pick(solid).i;
+      if (solid.length && (prefer === 'solid' || prefer === 'hab' || er.chance(0.8))) return er.pick(solid).i;
       return er.pick(ps).i;
+    };
+    // 历史事件的年份在所属的 50 年内浮动，但不会早于它的起因
+    const yearOf = (y, cause) => {
+      let v = y + tx.int(0, 40);
+      const c = cause != null ? events[cause] : null;
+      if (c && c.y >= v) v = Math.min(c.y + tx.int(1, 6), Math.max(c.y, y + 49));
+      return Math.min(v, PRESENT - 1);
     };
     const ev = (o) => {
       o.id = events.length;
-      if (!o.live) o.y = Math.min(o.y, PRESENT);
+      if (!o.live) { o.y = o.at ?? yearOf(o.y, o.cause); delete o.at; }
       o.sum = sp(o.sum); o.trace = sp(o.trace);
       events.push(o);
       civs[o.civ].events.push(o.id);
-      if (o.other != null) civs[o.other].events.push(o.id);
+      if (o.other != null && o.other !== o.civ) civs[o.other].events.push(o.id);
       return o.id;
     };
-    const border = (a, b) => {
+    const recent = (id, y, span) => id != null && y - events[id].y <= span;
+    // 两个文明之间的战线：先看直接相邻的星系，没有再看两步以内的
+    const frontier = (a, b) => {
       const out = [];
-      for (const s of a.territory) for (const n of adj[s]) if (b.territory.has(n)) out.push([s, n]);
+      for (const s of a.territory) for (const m of adj[s]) if (b.territory.has(m)) out.push([s, m]);
+      if (out.length) return out;
+      for (const s of a.territory) for (const m of near2[s]) if (b.territory.has(m)) out.push([s, m]);
       return out;
     };
     const relInit = (a, b) => {
@@ -790,242 +848,1022 @@ const Gen = (() => {
     };
     const getRel = (a, b) => a.rel[b.id] ?? 0;
     const setRel = (a, b, v) => { v = Math.max(-1, Math.min(1, v)); a.rel[b.id] = v; b.rel[a.id] = v; };
-    const collapse = (c, y, cause, conquered) => {
-      if (!c.alive) return;
-      if (!conquered && c.tech >= 5 && er.chance(0.5)) {
-        const sid = c.home[0];
-        cause = ev({ y, type: 'exodus', civ: c.id, sys: sid, pl: c.home[1], cause,
-          sum: `${c.polity()}在衰落中建造方舟舰队，驶离了本星域。`,
-          trace: `${plName(sid, c.home[1])}轨道上的巨型船坞已经空置。最后一次发射的航向记录指向星域之外，此后没有回传信号。` });
+    const inWar = (w, id) => w.sa.includes(id) || w.sb.includes(id);
+    const atWar = (c) => wars.reduce((t, w) => t + (!w.over && inWar(w, c.id) ? 1 : 0), 0);
+    const fighting = (a, b) => wars.some((w) => !w.over && ((w.sa.includes(a.id) && w.sb.includes(b.id)) || (w.sb.includes(a.id) && w.sa.includes(b.id))));
+    const abandon = (c, s) => { c.territory.delete(s); owner[s] = null; ruins[s].add(c.id); };
+
+    // ---- 留名的个体 ----
+    const rulerTitle = (c) => {
+      const s = c.society;
+      return c.sp.rulerT || (/帝国/.test(s) ? '皇帝' : /汗国/.test(s) ? '大汗' : /战帮/.test(s) ? '战酋' : /圣座|教团/.test(s) ? '教宗' : /王/.test(s) ? '国王'
+        : /部族|部落|氏族/.test(s) ? '大酋长' : /共和|议|长老|联盟|同盟|联合|共同体|执政|大会/.test(s) ? '执政官' : '领袖');
+    };
+    const ROLE = { commander: '统帅', prophet: '先知', scholar: '学者', rebel: '起事者', architect: '匠师' };
+    const CODE_ROLE = { ruler: '主控节点', commander: '战术节点', prophet: '异常节点', scholar: '推演节点', rebel: '分叉节点', architect: '构造节点' };
+    const figure = (c, role, y) => {
+      const mode = c.sp.fig;
+      if (!mode || (mode === 'ord' && role !== 'ruler')) return null;
+      let name, title;
+      if (mode === 'ord') { c.ord = (c.ord || tx.int(3, 60)) + tx.int(1, 3); name = `第 ${c.ord} 代${c.sp.rulerT || '主脑'}`; title = ''; }
+      else if (mode === 'code') { name = tx.pick('KRTVXZMN'.split('')) + tx.pick('AEIOU'.split('')) + '-' + tx.int(100, 999); title = CODE_ROLE[role]; }
+      else {
+        let g = 0;
+        do { name = langWord(tx, c.lang, tx.int(2, 3), 0.3); } while ((!speakable(name, 4, 9) || c.figNames.has(name) || used.has(name)) && g++ < 60);
+        title = role === 'ruler' ? rulerTitle(c) : ROLE[role];
       }
-      const sid = conquered ? c.home[0] : c.home[0];
-      ev({ y, type: 'collapse', civ: c.id, sys: sid, pl: c.home[1], cause,
-        sum: conquered ? `${c.polity()}失去最后的领土，作为独立文明不复存在。` : `${c.polity()}瓦解，此后不再留下任何记录。`,
-        trace: conquered
-          ? `母星的城市在同一时期遭到摧毁，焦土层厚达数米。此后的地层中只有征服者的建筑。`
-          : `所有官方记录在同一年中断。城市没有遭受破坏的迹象，只是被逐渐遗弃，风沙填满了街道。` });
-      c.alive = false; c.endYear = y; c.fate = conquered ? '被征服' : '瓦解';
-      for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); }
-      c.territory.clear();
-      for (const w of wars) if (!w.over && (w.a === c.id || w.b === c.id)) w.over = true;
+      c.figNames.add(name);
+      const f = { id: figures.length, civ: c.id, name, title, role, full: title + name, y0: y, deeds: [], dead: null };
+      figures.push(f); c.figs.push(f);
+      return f;
+    };
+    const ruler = (c, y) => (c.ruler && c.ruler.dead == null ? c.ruler : (c.ruler = figure(c, 'ruler', y)));
+    const deed = (f, id) => { if (f) { f.deeds.push(id); (events[id].figs = events[id].figs || []).push(f.id); } return id; };
+    const retire = (f, c, y, quiet) => {
+      f.dead = y; c.figs = c.figs.filter((x) => x !== f);
+      if (c.ruler === f) c.ruler = null;
+      if (quiet || !c.alive || !f.deeds.length || c.sp.kind !== 'flesh' || !tx.chance(0.32)) return;
+      const sid = c.cap[0], pl = solidAt(sid, c.cap[1]) ? c.cap[1] : pickPlanet(sid, 'solid');
+      if (!solidAt(sid, pl)) return;
+      const first = events[f.deeds[0]];
+      deed(f, ev({ y, type: 'tomb', civ: c.id, sys: sid, pl, cause: f.deeds[f.deeds.length - 1],
+        sum: `${f.full}去世，葬于${plName(sid, pl)}。`,
+        trace: V([
+          `一座封闭完好的墓室。墓志用${c.sp.script}写成，开头是${f.full}的名字，后面列着 ${Math.max(f.deeds.length, tx.int(2, 7))} 件功绩，头一件是：${first.sum.replace(/。$/, '')}。`,
+          `一座没有被盗掘过的陵墓，随葬品的摆放遵循「${c.culture[0]}」的习俗。棺椁上只刻了一个名字：${f.name}。`,
+          `山壁上凿出的一排墓龛，最大的一座属于${f.full}。龛前的祭台有反复修补的痕迹，祭祀至少持续了 ${tx.int(4, 20)} 代人。`,
+        ]) }));
     };
 
-    for (let y = 0; y <= PRESENT; y += STEP) {
+    // ---- 奇观与圣物 ----
+    const WONDER = {
+      flesh: ['大图书馆', '千柱神殿', '凯旋门', '环城水渠', '天文台', '先王陵', '议事穹顶', '星港灯塔'],
+      hive: ['中央孵化塔', '千层巢塔', '信息素方尖柱'],
+      mech: ['行星级处理阵列', '轨道铸造环', '校准塔'],
+      field: ['谐振环', '极光幕', '驻波塔'],
+      mind: ['纪年巨构', '母体穹顶', '回声林'],
+    };
+    const RELIC = {
+      flesh: ['冠冕', '誓约石', '律法铜板', '创世卷轴', '长明灯', '王权之剑', '星图原本', '圣骨匣'],
+      hive: ['始祖蜕壳', '初代巢核'],
+      mech: ['初始指令核', '零号存储块'],
+      field: ['始源驻波', '第一谐振腔'],
+      mind: ['始源之核'],
+    };
+    const RELIC_SP = { silicon: ['初生晶核', '第一道生长纹'], fungal: ['始祖孢囊', '母网的第一个节点'], plant: ['母株之种', '初花的标本'], oceanmind: ['初潮之水'] };
+    const properName = (c) => { let nm, g = 0; do { nm = langWord(tx, c.lang, 2, 0.5); } while ((!speakable(nm, 4, 9) || used.has(nm)) && g++ < 60); used.add(nm); return nm; };
+    const DISC = [
+      ['绘制出本旋臂的航道潮汐图', '航道潮汐图'], ['证明了跨星系即时通讯的可行性', '论即时通讯'], ['解出了恒星寿命的演化方程', '恒星寿命表'],
+      ['造出第一台自持聚变炉', '聚变炉图说'], ['提出一套通用的星际历法', '通历'], ['找到了调控行星大气的方法', '大气调控法'],
+      ['掌握了长途航行的休眠技术', '长眠术'], ['测定了银河核心黑洞的质量', '银心测量记'], ['编成邻近文明语言的对照词典', '诸语对照'],
+      ['证明本星域的航道会缓慢漂移', '航道漂移考'], ['从古老遗迹中复原出一种失传的合金', '古合金复原录'],
+    ];
+
+    // 圣物的归宿：持有者覆灭时，原主若还在就把它取回去；否则它留在废墟里，等后来者发掘
+    const dropRelics = (c, id, y) => {
+      for (const r of relics) {
+        if (r.holder !== c.id) continue;
+        const O = civs[r.origin];
+        if (O.alive && O.id !== c.id && O.space && er.chance(0.65)) {
+          r.holder = O.id; r.sys = O.cap[0]; r.pl = O.cap[1];
+          ev({ y, type: 'reclaim', relic: r.id, civ: O.id, other: c.id, sys: r.sys, pl: r.pl, cause: id,
+            sum: `${c.name}覆灭后，${O.polity()}取回了「${r.name}」。`,
+            trace: `「${r.name}」回到了原处。基座上原有的轮廓与它严丝合缝，只是旁边多了一道修补过的裂痕。` });
+          if (O.grudge === c.id) { O.grudge = null; O.relicLost = null; }
+          O.stab += 0.1;
+        } else { r.holder = null; r.lost = true; r.lostEv = id; }
+      }
+    };
+
+    // ---- 一个文明的终结，以及它的余波 ----
+    const collapse = (c, y, cause, conquered, how) => {
+      if (!c.alive) return;
+      const sid = c.cap[0], pl = c.cap[1];
+      if (!conquered && !how && c.tech >= 5 && er.chance(0.5)) {
+        cause = ev({ y, type: 'exodus', civ: c.id, sys: sid, pl, cause,
+          sum: `${c.polity()}在衰落中建造方舟舰队，驶离了本星域。`,
+          trace: V([
+            `${plName(sid, pl)}轨道上的巨型船坞已经空置。最后一次发射的航向记录指向星域之外，此后没有回传信号。`,
+            `${plName(sid, pl)}的高轨道上留着 ${tx.int(6, 30)} 座空的船台，排成一列。每座船台的铭牌上都有一个船名，其中一个被划掉了。`,
+          ]) });
+      }
+      const terr = [...c.territory];
+      const id = ev({ y, type: 'collapse', civ: c.id, sys: sid, pl, cause,
+        sum: conquered ? V([`${c.polity()}失去最后的领土，作为独立文明不复存在。`, `${c.polity()}亡于外敌，此后的记录都出自征服者之手。`])
+          : how === 'nova' ? `恒星熄灭，${c.polity()}随之消亡。`
+          : V([`${c.polity()}瓦解，此后不再留下任何记录。`, `${c.polity()}的中央政权停止运作，各地各自为政，不久便都沉寂了。`]),
+        trace: conquered
+          ? V([
+            `${c.name}的核心设施在同一时期被摧毁，焦土层厚达数米。此后的地层中只有征服者的遗物。`,
+            `${c.name}的设施在很短的时间内相继停用。最后一批${c.sp.script}记录的是物资移交清单，接收方一栏写着另一个文明的名字。`,
+          ])
+          : how === 'nova' ? `这里只剩下恒星残骸周围一圈缓慢扩散的气壳。${c.name}${c.sp.script}的最后一段记录异常平静，逐项列出了它们打算保存的东西。`
+          : V(K(c, {
+            flesh: [
+              `所有官方记录在同一年中断。城市没有遭受破坏的迹象，只是被逐渐遗弃，风沙填满了街道。`,
+              `最后一批官方文书的日期越来越稀疏，最后一份只写了开头。此后的地层里只有零散的个人物品。`,
+              `粮仓和水库是最后被废弃的建筑。仓门上的封条被反复撕开又贴上，最上面一层没有盖章。`,
+            ],
+            any: [
+              `所有记录在同一年中断。设施没有遭受破坏的迹象，只是一处接一处地停止了运转。`,
+              `${c.name}${c.sp.script}的记录越来越稀疏，最后一段没有写完。此后这里再没有新的痕迹。`,
+            ],
+          })) });
+      c.alive = false; c.endYear = events[id].y; c.fate = conquered ? '被征服' : how === 'nova' ? '毁于超新星' : '瓦解'; c.endEv = id;
+      for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); }
+      c.territory.clear();
+      for (const w of wars) {
+        if (w.over) continue;
+        if (w.a === c.id || w.b === c.id) w.over = true;
+        else { w.sa = w.sa.filter((x) => x !== c.id); w.sb = w.sb.filter((x) => x !== c.id); }
+      }
+      for (const a of c.allies) civs[a].allies.delete(c.id);
+      c.allies.clear();
+      dropRelics(c, id, y);
+      // 难民：投奔关系最好的邻居
+      let host = null;
+      for (const oid of c.contacted) { const o = civs[oid]; if (o.alive && o.space && getRel(c, o) > -0.1 && (!host || getRel(c, o) > getRel(c, host))) host = o; }
+      if (host && c.sp.kind !== 'field' && er.chance(conquered ? 0.35 : 0.6)) {
+        const hs = host.cap[0], hp = host.cap[1];
+        ev({ y, type: 'refugee', civ: host.id, other: c.id, sys: hs, pl: hp, cause: id,
+          sum: `${c.name}覆灭后，一批${c.who}难民在${host.polity()}境内定居。`,
+          trace: c.sp.kind === 'flesh' && host.sp.kind === 'flesh'
+            ? `${at(hs, hp)}有一个街区的建筑风格与周围完全不同。门楣上的${c.name}${c.sp.script}一直用到了第三代人，之后换成了${host.name}${host.sp.script}。`
+            : `${at(hs, hp)}有一处聚居地，遗物全部属于${c.who}，却建在${host.who}的疆域深处。最早的一批物件上还留着仓促迁徙的痕迹。` });
+        host.tech = Math.min(10, host.tech + 0.2); host.stab -= 0.04;
+      }
+      // 残部：边远的驻地自立为新的政权
+      if (!conquered && terr.length >= 4 && er.chance(0.45)) {
+        const hd = hops(sid);
+        const far = terr.filter((s) => s !== sid && systems[s].planets.length && systems[s].type !== 'S' && !systems[s].nova).sort((a, b) => hd[b] - hd[a]);
+        if (far.length) {
+          const base = far[0];
+          const take = [base, ...adj[base].filter((x) => terr.includes(x) && x !== sid)].slice(0, 3);
+          let bp = systems[base].planets.findIndex((p) => p.kind === 'rock' || p.kind === 'super');
+          if (c.sp.prefer === 'gas' || bp < 0) bp = pickPlanet(base, c.sp.prefer || 'solid');
+          const nc = makeCiv([base, bp], y, c, c.sp);
+          nc.founded = true; nc.space = true; nc.stab = 0.55; nc.tech = Math.max(3, c.tech - 0.6);
+          nc.territory.clear();
+          for (const s of take) { nc.territory.add(s); owner[s] = nc.id; }
+          for (const oid of c.contacted) { const o = civs[oid]; if (o.alive) { nc.contacted.add(oid); o.contacted.add(nc.id); setRel(nc, o, getRel(c, o) * 0.5); contactEv[pk(nc.id, oid)] = contactEv[pk(c.id, oid)]; } }
+          const f = figure(nc, 'ruler', y); nc.ruler = f;
+          nc.foundEv = deed(f, ev({ y, type: 'remnant', civ: nc.id, other: c.id, sys: base, pl: bp, cause: id,
+            sum: `${c.name}瓦解后，${sysN(base)}的驻地${f ? '在' + f.full + '带领下' : ''}自立，建立${nc.polity()}。`,
+            trace: K(nc, {
+              flesh: `${at(base, bp)}的官署换过一次门牌。旧门牌没有拆走，只是翻了个面，背面刻上了「${nc.polity()}」。`,
+              any: `${at(base, bp)}的设施在母邦瓦解之后继续运转了下去。纪年方式在那一年改了，新的元年就是${nc.name}建立的那一年。`,
+            }) }));
+          nc.lastColony = nc.foundEv;
+        }
+      }
+    };
+
+    // 迁都：母星受创后，把政治中心搬到最好的一处殖民地
+    const moveCapital = (c, y, cause) => {
+      const opts = [...c.territory].filter((s) => s !== c.cap[0] && systems[s].planets.length);
+      if (!opts.length) return;
+      const s = opts.find((x) => systems[x].planets.some((p) => p.hab)) ?? opts[0];
+      const pl = pickPlanet(s, c.sp.prefer || 'hab');
+      c.cap = [s, pl];
+      ev({ y, type: 'capital', civ: c.id, sys: s, pl, cause,
+        sum: `${c.polity()}把都城迁往${plName(s, pl)}。`,
+        trace: K(c, {
+          flesh: `${at(s, pl)}的官方建筑是在很短的时间内建成的，用料却很讲究。奠基铭文提到了旧都，用的是过去时。`,
+          any: `${at(s, pl)}的设施在这一时期突然扩大了数倍。${c.name}的记录从此改以这里为起算点。`,
+        }) });
+    };
+
+    // ---- 天灾 ----
+    const bStars = systems.filter((s) => s.type === 'B');
+    const nova = (s, y) => {
+      const oldName = STARS[s.type].name;
+      const rem = er.chance(0.75) ? 'N' : 'H';
+      s.nova = y; s.type0 = s.type; s.type = rem; s.lum = er.range(STARS[rem].lum[0], STARS[rem].lum[1]);
+      for (const p of s.planets) if (p.kind !== 'gas' && p.kind !== 'ice') { p.was = p.climate; p.climate = '冰冷岩体'; p.atmo = '无'; p.hab = false; p.T = er.range(40, 120); }
+      const ring1 = new Set([s.id, ...adj[s.id]]), hit = new Map();
+      for (const x of [s.id, ...near2[s.id]]) { const o = owner[x]; if (o != null) (hit.get(o) || hit.set(o, []).get(o)).push(x); }
+      let any = false;
+      for (const [cid, list] of hit) {
+        const c = civs[cid]; any = true;
+        const doomed = ring1.has(c.cap[0]);
+        const lost = list.filter((x) => ring1.has(x) && x !== c.cap[0]);
+        const site = lost[0] ?? list[0], pl = pickPlanet(site);
+        for (const x of lost) abandon(c, x);
+        c.stab -= doomed ? 0.4 : 0.08 + lost.length * 0.06;
+        const ne = ev({ y, type: 'nova', civ: c.id, sys: site, pl, cause: null,
+          sum: lost.length ? `${sysN(s.id)}的${oldName}爆发为超新星，${c.polity()}失去了周边 ${lost.length} 个星系。` : `${sysN(s.id)}的${oldName}爆发为超新星，${c.polity()}的${doomed ? '母星' : '边境'}受到辐射冲击。`,
+          trace: V([
+            `${plName(site, pl)}朝着${sysN(s.id)}的那一面被剥去了表层。残存的掩体里，辐射计的读数停在量程的尽头。`,
+            `${at(site, pl)}的设施朝同一个方向熔毁。${c.name}${c.sp.script}的最后几条记录在讨论一颗越来越亮的恒星，没有提到撤离。`,
+          ]) });
+        c.lastNeg = ne; c.disasterEv = ne;
+        if (doomed && (c.cap[0] === s.id || c.territory.size <= 2 || er.chance(0.5))) collapse(c, y, ne, false, 'nova');
+        else if (doomed) moveCapital(c, y, ne);
+      }
+      return any;
+    };
+    const HAB_SET = new Set(HAB);
+    const impact = (c, y) => {
+      const s = er.pick([...c.territory]), isCap = s === c.cap[0];
+      const pl = isCap ? c.cap[1] : pickPlanet(s, 'solid');
+      if (!solidAt(s, pl)) return false;
+      const p = systems[s].planets[pl];
+      const winter = HAB_SET.has(p.climate) && p.climate !== '荒漠';
+      if (winter) { p.was = p.climate; p.climate = '冻原'; p.hab = false; p.T = er.range(205, 250); }
+      const lostCol = !isCap && c.territory.size > 1;
+      const ie = ev({ y, type: 'impact', civ: c.id, sys: s, pl, cause: null,
+        sum: isCap ? `一颗小天体撞击了${c.polity()}的都城所在的${plName(s, pl)}。` : `一颗小天体撞击${plName(s, pl)}，${c.polity()}在那里的殖民地没有留下幸存者。`,
+        trace: V([
+          `${plName(s, pl)}上有一个直径 ${tx.int(40, 300)} 公里的撞击坑，边缘切过一片${c.name}的遗址。坑外的建筑朝同一个方向倒伏。`,
+          `${plName(s, pl)}的地层里夹着一层薄薄的熔融玻璃，遍布全球。这一层之下是${c.name}的遗物，之上什么都没有。`,
+        ]) + (winter ? '此后的沉积层里不再有植物的痕迹。' : '') });
+      c.lastNeg = ie; c.disasterEv = ie;
+      if (lostCol) { abandon(c, s); c.stab -= 0.08; }
+      else { c.stab -= 0.28; c.tech = Math.max(1, c.tech - 0.4); if (er.chance(0.5)) moveCapital(c, y, ie); }
+      return true;
+    };
+    const flare = (c, y) => {
+      const ms = [...c.territory].filter((s) => systems[s].type === 'M' && s !== c.cap[0]);
+      if (!ms.length) return false;
+      const s = er.pick(ms), pl = pickPlanet(s, 'solid');
+      const fe = ev({ y, type: 'flare', civ: c.id, sys: s, pl, cause: null,
+        sum: `${sysN(s)}的红矮星爆发强烈耀斑，${c.polity()}放弃了那里的殖民地。`,
+        trace: V([
+          `${at(s, pl)}向阳一面的设施表面全部熔成了玻璃质，背阴一面完好。撤离是有序的，仓库都清空了。`,
+          `${at(s, pl)}的电子设备在同一瞬间全部烧毁。手写的${c.sp.script}记录在那之后又延续了 ${tx.int(20, 300)} 天，最后一页是撤离名单。`,
+        ]) });
+      abandon(c, s); c.stab -= 0.06; c.lastNeg = fe; c.disasterEv = fe;
+      return true;
+    };
+    const climateShift = (c, y) => {
+      const p = systems[c.cap[0]].planets[c.cap[1]];
+      if (!p || !p.hab || c.sp.kind !== 'flesh') return false;
+      const to = er.chance(0.5) ? '冻原' : '荒漠';
+      const man = c.depleteEv != null;
+      p.was = p.climate; p.climate = to; p.hab = false; p.T = to === '冻原' ? er.range(205, 250) : er.range(336, 400);
+      const ce = ev({ y, type: 'climate', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: man ? c.depleteEv : null,
+        sum: man ? `长期的过度开采之后，${plName(c.cap[0], c.cap[1])}的气候失衡，${c.polity()}的都城不再宜居。` : `${plName(c.cap[0], c.cap[1])}的气候在几代人之内剧变，${c.polity()}的都城不再宜居。`,
+        trace: to === '冻原'
+          ? V([
+            `${plName(c.cap[0], c.cap[1])}的冰层下压着一整套灌溉系统。渠道是为温暖的气候设计的，最后一次修缮时已经加装了保温层。`,
+            `${plName(c.cap[0], c.cap[1])}的旧城里，晚期的房屋一幢比一幢矮，墙一幢比一幢厚。最晚的几幢已经完全建在地下。`,
+          ])
+          : V([
+            `${plName(c.cap[0], c.cap[1])}的沙层下埋着成片的码头和堤坝，离今天最近的水源有数百公里。`,
+            `${plName(c.cap[0], c.cap[1])}的旧城外有一圈又一圈的防沙墙，越往外的越新，也越矮。最外面的一圈只砌了一半。`,
+          ]) });
+      c.stab -= 0.22; c.lastNeg = ce; c.disasterEv = ce;
+      if (er.chance(0.6)) moveCapital(c, y, ce);
+      return true;
+    };
+
+    // ---- 殖民：每处殖民地都有它的用途和缘由 ----
+    const colonize = (c, y) => {
+      const opts = [];
+      const reach = c.tech >= 5 ? near2 : adj;
+      for (const s of c.territory) for (const m of reach[s]) if (owner[m] == null && !reserved.has(m) && systems[m].planets.length && !opts.includes(m)) opts.push(m);
+      if (!opts.length) return;
+      const sid = er.pick(opts), sysT = systems[sid], star = STARS[sysT.type];
+      let rival = null;
+      for (const x of near2[sid]) { const o = owner[x]; if (o != null && o !== c.id && c.contacted.has(o) && civs[o].alive && getRel(c, civs[o]) < 0.15) { rival = civs[o]; break; } }
+      let kind = 'settle', cause = c.lastColony;
+      if (rival && er.chance(0.7)) { kind = 'fort'; cause = contactEv[pk(c.id, rival.id)] ?? cause; }
+      else if (recent(c.plagueEv, y, 100) && er.chance(0.5)) { kind = 'refuge'; cause = c.plagueEv; }
+      else if (recent(c.coupEv, y, 100) && c.sp.kind === 'flesh' && er.chance(0.5)) { kind = 'exile'; cause = c.coupEv; }
+      else if (c.depleteEv != null && er.chance(0.5)) { kind = 'mine'; cause = c.depleteEv; }
+      else if ('NWHB'.includes(sysT.type) && (c.ethos === '求知' || er.chance(0.4))) kind = 'lab';
+      else if (c.ethos === '信仰' && c.faithEv != null && c.sp.kind === 'flesh' && er.chance(0.45)) { kind = 'abbey'; cause = c.faithEv; }
+      else if (c.tradeEv != null && adj[sid].length >= 3 && er.chance(0.5)) { kind = 'port'; cause = c.tradeEv; }
+      else if (er.chance(0.2)) kind = 'mine';
+      const pl = pickPlanet(sid, c.sp.prefer || (kind === 'settle' || kind === 'refuge' ? 'hab' : 'solid'));
+      const solid = solidAt(sid, pl), P = c.polity(), sc = c.sp.script;
+      if (!solid && c.sp.prefer !== 'gas' && (kind === 'settle' || kind === 'mine')) kind = 'harvest';
+      if (!solid && (kind === 'abbey' || kind === 'exile' || kind === 'refuge')) kind = 'settle';
+      owner[sid] = c.id; c.territory.add(sid); claim(sid, c);
+      const S2 = sysN(sid), PL2 = plName(sid, pl), AT2 = at(sid, pl);
+      let sum, trace;
+      if (kind === 'fort') {
+        sum = V([`${P}在${S2}星系修建要塞，防备${rival.polity()}。`, `${P}抢在${rival.polity()}之前占据了${S2}星系，并在那里驻军。`]);
+        trace = V([
+          `${PL2}的轨道上有一圈防御平台的残骸，炮位全部朝向${rival.name}疆域的方向。`,
+          `布设在${S2}外围的一片雷区，至今仍有零星的引信在待机。布雷记录用的是${c.name}${sc}。`,
+          `${S2}的每一条航道入口都有一座哨站，彼此之间用定向通讯相连。哨站的巡逻日志里，朝向${rival.name}一侧的条目是其余方向的十倍。`,
+          `${AT2}的一座船坞，只造过一种船：${c.name}的护卫舰。船台上还留着一艘，龙骨已经铺好，没有来得及合拢。`,
+          K(c, {
+            flesh: `${AT2}的一处驻军基地，营房的规模远大于仓库。墙上的${sc}标语反复提到「${rival.name}」。`,
+            any: `${AT2}的一处前哨，储备的全是军用物资。${c.name}${sc}的值守记录里，「${rival.name}」这个名字每天都出现。`,
+          }),
+        ]);
+      } else if (kind === 'mine') {
+        sum = c.depleteEv === cause && cause != null ? `${P}为弥补本土的枯竭，在${S2}星系开矿。` : `${P}在${S2}星系开设采矿前哨。`;
+        trace = V([
+          `${PL2}上有一片露天矿场，矿坑按统一的网格排列。运输轨道的尽头是一座已经拆空的发射架。`,
+          `${PL2}的地壳被钻出了数百个竖井，井口的标牌用${sc}编号。最深的一口没有回填。`,
+          `${PL2}上的一处矿区，附近的矿脉已被采空，矿渣堆成了新的山丘。账目显示，产出全部运回了${c.name}本土。`,
+          `${PL2}的一条峡谷被整段挖空，两壁留着逐层下切的台阶。谷底的冶炼炉里还有没出完的炉渣。`,
+          `一批标着${c.name}${sc}的矿石罐，整齐地码在${PL2}的发射场上，等着一艘没有来的货船。`,
+        ]);
+      } else if (kind === 'harvest') {
+        sum = `${P}在${S2}星系的${sysT.planets[pl].climate}轨道上建起采集站。`;
+        trace = V([
+          `${PL2}的高层大气里漂着一座采集平台，导管还垂在云层中。储罐是空的，阀门上印着${c.who}的徽记。`,
+          `环绕${PL2}的一圈储罐卫星，轨道已经开始衰减。对接口的规格与${c.name}的飞船一致。`,
+        ]);
+      } else if (kind === 'port') {
+        sum = `${P}在${S2}星系设立转运港。`;
+        trace = V([
+          `${PL2}轨道上的一座环形港，泊位有 ${tx.int(24, 180)} 个，远多于当地所需。货物清单用${sc}和另一种记录方式对照书写。`,
+          `${S2}是 ${adj[sid].length} 条航道的交汇处。${PL2}附近的中转仓库里，货架按目的地分区，标签至少有三种写法。`,
+        ]);
+      } else if (kind === 'lab') {
+        sum = `${P}在${S2}星系建立观测站，研究这里的${star.name}。`;
+        trace = V([
+          `${AT2}有一座观测站，所有仪器都对准了${S2}的${star.name}。数据库里存着 ${tx.int(30, 900)} 年的连续读数。`,
+          `一组环绕${star.name}的探测器，排成精确的等边阵列。回传的数据用${c.name}${sc}标注，最后一条之后再无记录。`,
+        ]);
+      } else if (kind === 'abbey') {
+        sum = `${P}的信众在${S2}星系建立隐修地。`;
+        trace = V([
+          `${PL2}上的一处隐修地，没有任何商业设施，只有 ${tx.int(30, 400)} 间面积相同的静室。每扇门上都刻着同一句经文。`,
+          `一座建在${PL2}山脊上的修院，窗口全部朝向${c.name}母星的方向。抄写室里的手稿只抄到一半。`,
+        ]);
+      } else if (kind === 'exile') {
+        sum = `${P}把政变中的失败者流放到${S2}星系。`;
+        trace = V([
+          `${PL2}上的一处定居点，围墙的岗楼朝向内侧。住户名册用${sc}写成，每个名字后面都标着刑期，多数是「终身」。`,
+          `一批没有窗户的预制舱，排列在${PL2}最贫瘠的平原上。舱壁内侧刻满了日期，最长的一列持续了 ${tx.int(11, 60)} 年。`,
+        ]);
+      } else if (kind === 'refuge') {
+        sum = `${P}把瘟疫中的幸存者安置到${S2}星系。`;
+        trace = K(c, {
+          flesh: `${PL2}上的定居点建得很仓促，建筑之间留着异常宽的间隔。登记簿上，每户的原籍后面都注明了检疫天数。`,
+          any: `${AT2}有一处匆忙建成的聚居地，规模不大。从遗物看，迁来的个体全部出自同一批幸存者。`,
+        });
+      } else {
+        sum = V([`${P}在${S2}星系建立殖民地。`, `${P}的移民船抵达${S2}星系，建立定居点。`, `${P}把疆域扩展到了${S2}星系。`]);
+        const own = [c.sp.settle, c.sp.settle2].filter(Boolean).map((t) => `${PL2}${t.startsWith('的') ? '' : '上'}${t}`);
+        trace = own.length ? V([...own,
+          `${AT2}有一处${c.who}的据点，规模不大，布局与${c.name}母星上的完全一致。`,
+          `一座仍在广播的导航信标，编码是${c.name}${sc}。它标出的航线，一头在${S2}，一头在${c.name}的母星。`,
+        ]) : V([
+          `${PL2}上有一处规划整齐的定居点，建筑使用统一规格的预制模块。奠基碑上用${sc}刻着首批移民的名单，共 ${tx.int(40, 900)} 个名字。`,
+          `${PL2}上发现一座穹顶聚落，气闸门上印着${c.who}的徽记。仓库里还留有几批没有开封的补给。`,
+          `一条从${PL2}延伸到轨道的货运缆索，底座的铭牌用${sc}记录了殖民地的建立年份。`,
+          `${PL2}上的一片农田遗迹，田垄的走向迁就着当地的地形。最早的一批农具是从别处带来的，后来的都是就地打造。`,
+          `${PL2}上有一座小镇，街道以${c.name}母星的地名命名。镇中心的石碑记着建镇那一年的收成。`,
+        ]);
+      }
+      const hadRuin = [...ruins[sid]].filter((x) => x !== c.id);
+      c.lastColony = ev({ y, type: 'colony', kind, civ: c.id, other: kind === 'fort' ? rival.id : undefined, sys: sid, pl, cause, sum, trace });
+      // 在别人的废墟上落脚
+      const lostRelic = relics.find((r) => r.lost && r.sys === sid);
+      if (lostRelic) {
+        const from = civs[lostRelic.origin];
+        lostRelic.lost = false; lostRelic.holder = c.id; lostRelic.sys = c.cap[0]; lostRelic.pl = c.cap[1];
+        ev({ y, type: 'recover', civ: c.id, other: from.id, sys: sid, pl, cause: lostRelic.lostEv ?? c.lastColony,
+          sum: `${c.who}在${S2}星系的废墟中找到了「${lostRelic.name}」。`,
+          trace: `一处发掘现场，探方中央留着一个器物形状的空腔。${c.who}的记录说，从这里取出的东西，${from.who}称它为「${lostRelic.name}」。` });
+        c.stab += 0.08;
+      }
+      if (hadRuin.length && !c.dug.has(hadRuin[0]) && er.chance(0.7)) {
+        const old = civs[hadRuin[0]]; c.dug.add(old.id);
+        const boost = old.tech > c.tech;
+        ev({ y, type: 'dig', civ: c.id, other: old.id, sys: sid, pl, cause: old.endEv ?? null,
+          sum: boost ? `${c.who}在${S2}星系发掘${old.who}的遗迹，从中学到了自己尚未掌握的技术。` : `${c.who}在${S2}星系发掘出更早的${old.who}遗迹。`,
+          trace: V([
+            `一处考古营地，工具上印着${c.who}的标记。他们挖掘的对象比营地本身古老得多，探方里露出的是${old.name}${old.sp.script}。`,
+            `${c.who}在这里留下了一整套测绘图，画的是${old.who}的遗址。图上的注释起初全是问号，越往后问号越少。`,
+          ]) });
+        if (boost) c.tech = Math.min(10, c.tech + 0.35);
+      }
+    };
+
+    // ---- 与尚未进入太空的文明相遇 ----
+    const primitive = (c, o, y) => {
+      const hs = o.home[0], hp = o.home[1];
+      if (c.ethos === '求知' || c.ethos === '隐修') {
+        c.watching[o.id] = ev({ y, type: 'watch', civ: c.id, other: o.id, sys: hs, pl: -1, cause: c.lastColony,
+          sum: `${c.polity()}发现了尚未进入太空的${o.who}，决定只观察、不接触。`,
+          trace: V([
+            `${sysN(hs)}外围的一颗小天体内部被掏空，装满了监听设备，属于${c.who}。记录里没有任何一次对外发射。`,
+            `一圈涂成黑色的小型探测器，停在${sysN(hs)}最外侧的轨道上，全部背对恒星。它们属于${c.who}，存储器里是${o.who}几百年间的无线电广播。`,
+            `${sysN(hs)}的彗星带里藏着一座${c.name}的观察哨。守则的第一条用${c.sp.script}写着：不得被看见。`,
+          ]) });
+        return;
+      }
+      c.contacted.add(o.id); o.contacted.add(c.id);
+      if (c.ethos === '扩张') {
+        setRel(c, o, -0.3); o.overlord = c.id; o.tech = Math.min(10, o.tech + 0.8);
+        o.vassalEv = contactEv[pk(c.id, o.id)] = ev({ y, type: 'subjugate', civ: c.id, other: o.id, sys: hs, pl: hp, cause: c.lastColony,
+          sum: `${c.polity()}发现了尚未进入太空的${o.who}，将其收为附庸。`,
+          trace: V([
+            `${plName(hs, hp)}的轨道上有一座${c.name}的监管站，正下方是${o.who}最古老的聚居地。当地记录里第一次出现「${c.name}」这个名字，是在一份贡赋清单上。`,
+            `${o.who}的早期记录里，有一段把天上新出现的光点称作「不动的星」。那是${c.name}的舰队。此后的记录改了口，称它们为「收税的」。`,
+          ]) });
+        o.lastNeg = o.vassalEv;
+      } else {
+        const faith = c.ethos === '信仰' && (!o.sp.ethos || o.sp.ethos.includes('信仰'));
+        setRel(c, o, 0.5); o.tech = Math.min(10, o.tech + 1.2);
+        if (faith && er.chance(0.5)) o.ethos = '信仰';
+        o.upliftEv = contactEv[pk(c.id, o.id)] = ev({ y, type: 'uplift', civ: c.id, other: o.id, sys: hs, pl: hp, cause: c.lastColony,
+          sum: faith ? `${c.polity()}的传教团降落在${plName(hs, hp)}，给${o.who}带去了信仰，也带去了技术。` : `${c.polity()}与尚未进入太空的${o.who}通商，带去了航天技术。`,
+          trace: V([
+            `${o.who}最早的一批航天图纸，用的是${c.name}${c.sp.script}，旁边有${o.who}自己加的译注。头几艘飞船的零件规格与${c.name}的完全一致。`,
+            solidAt(hs, hp) ? `${plName(hs, hp)}上的一处着陆场，地面被反复起降烧成了玻璃质。周围${o.name}聚落的规模，在此后一代人的时间里扩大了十倍。`
+              : `${plName(hs, hp)}附近的一座对接站，两侧的接口规格不同，中间用临时改装的转接段连着。${o.name}此后的造船记录，都从这座站算起。`,
+          ]) });
+      }
+    };
+
+    // ---- 宣战：盟友、宗主和旧怨都会被卷进来 ----
+    const ORD = ['二', '三', '四', '五', '六', '七'];
+    const declare = (c, o, y, cause, why) => {
+      const b = frontier(c, o);
+      if (!b.length) return false;
+      if (c.trade.has(o.id)) { c.trade.delete(o.id); o.trade.delete(c.id); }
+      const s = b[0][0], pl = pickPlanet(s);
+      const k = (c.warsWith[o.id] = o.warsWith[c.id] = (c.warsWith[o.id] || 0) + 1);
+      const name = k > 1 ? `第${ORD[Math.min(k - 2, 5)]}次${c.name}–${o.name}战争` : `${sysN(b[0][1])}战争`;
+      const f = ruler(c, y);
+      const we = deed(f, ev({ y, type: 'war', civ: c.id, other: o.id, sys: s, pl, cause,
+        sum: `${f ? f.full + '治下的' : ''}${c.polity()}向${o.polity()}宣战${why || ''}。后世称之为${name}。`,
+        trace: V([
+          `一份宣战文书被铸在金属板上，立在${sysN(s)}的边境哨站。落款是${c.polity()}的最高议事机构，列举了 ${tx.int(3, 9)} 条理由。`,
+          `${sysN(s)}的一座哨站里，值班记录在某一天突然改用加密格式。此前最后一条明文是一道来自${c.name}本土的命令，只有一个词。`,
+          `${at(s, pl)}的一处集结地，泊位的数量是平时的十倍。补给清单用${c.name}${c.sp.script}写成，收货方是 ${tx.int(3, 12)} 支不同的舰队。`,
+          `一枚没有拆封的外交信筒，漂在${sysN(s)}的航道上。里面是${c.name}的最后通牒，期限只给了 ${tx.int(3, 40)} 天。`,
+          `${sysN(s)}的界碑被移动过。旧的基座还在原处，新的位置向${o.name}一侧推进了很远，碑文也重刻了。`,
+          `一座${o.name}的使馆，撤离得很匆忙，却把所有文件都带走了。只有门口的铭牌被留下，背面用${c.name}${c.sp.script}刻了一个日期。`,
+          `${at(s, pl)}的一批征召名册，用${c.name}${c.sp.script}写成，按批次装订。最早的一册很薄，后面的一册比一册厚。`,
+        ]) }));
+      const w = { a: c.id, b: o.id, sa: [c.id], sb: [o.id], ev: we, start: y, len: er.int(2, 5), over: false, name };
+      wars.push(w);
+      setRel(c, o, -0.6);
+      // 被攻击一方的盟友与宗主
+      const helpers = [...o.allies];
+      if (o.overlord != null && !helpers.includes(o.overlord)) helpers.push(o.overlord);
+      for (const aid of helpers) {
+        const A = civs[aid];
+        if (!A.alive || aid === c.id || inWar(w, aid) || !A.space) continue;
+        const lord = o.overlord === aid, key = pk(o.id, aid);
+        if (!lord && (getRel(A, c) > 0.3 || A.stab < 0.3) && er.chance(0.6)) {
+          o.allies.delete(aid); A.allies.delete(o.id); setRel(o, A, -0.5);
+          o.lastNeg = ev({ y, type: 'betray', civ: aid, other: o.id, sys: A.cap[0], pl: -1, cause: allyEv[key] ?? we,
+            sum: `${o.polity()}遭到进攻时，${A.polity()}没有履行盟约。`,
+            trace: `${o.name}发往${A.name}的求援信号被完整地接收并存档，共 ${tx.int(7, 60)} 条。存档里没有一条回复。` });
+        } else if (lord || er.chance(0.75)) {
+          w.sb.push(aid); setRel(A, c, Math.min(getRel(A, c), -0.4));
+          const hs = A.cap[0];
+          ev({ y, type: 'joinwar', civ: aid, other: o.id, sys: hs, pl: pickPlanet(hs), cause: lord ? (o.vassalEv ?? we) : (allyEv[key] ?? we),
+            sum: lord ? `${A.polity()}出兵保护自己的附庸${o.polity()}。` : `${A.polity()}依照盟约，站在${o.polity()}一边参战。`,
+            trace: V([
+              `${sysN(hs)}的船坞记录显示，一支舰队在这一年整编出发，目的地不在${A.name}自己的疆域内。出发前的训令里引用了一份盟约的条文。`,
+              `一批${A.name}制式的补给箱，却堆在${o.name}的仓库规格的货架上。箱子上的封条写着两个文明的名字。`,
+            ]) });
+        }
+      }
+      // 进攻一方的盟友
+      for (const aid of c.allies) {
+        const A = civs[aid];
+        if (!A.alive || aid === o.id || inWar(w, aid) || !A.space || getRel(A, o) > 0.1 || !er.chance(0.45)) continue;
+        w.sa.push(aid); setRel(A, o, Math.min(getRel(A, o), -0.4));
+        const hs = A.cap[0];
+        ev({ y, type: 'joinwar', civ: aid, other: c.id, sys: hs, pl: pickPlanet(hs), cause: allyEv[pk(c.id, aid)] ?? we,
+          sum: `${A.polity()}加入${c.polity()}一方，对${o.polity()}作战。`,
+          trace: `${sysN(hs)}的一份动员令，用${A.name}${A.sp.script}写成。列出的作战目标全部在${o.name}境内，理由一栏只写了「盟约」。` });
+      }
+      return true;
+    };
+
+    const discover = (c, y) => {
+      const pool = DISC.filter((d, i) => !c.known.has(i) && (i !== 8 || c.contacted.size) && (i !== 10 || c.dug.size));
+      if (!pool.length) return false;
+      const d = er.pick(pool); c.known.add(DISC.indexOf(d));
+      const f = figure(c, 'scholar', y);
+      const s = c.cap[0], pl = c.cap[1];
+      c.tech = Math.min(10, c.tech + 0.3);
+      c.discEv = deed(f, ev({ y, type: 'discovery', civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.spaceEv ?? c.foundEv,
+        sum: `${c.polity()}${f ? '的' + f.full : ''}${d[0]}。`,
+        trace: V([
+          `一处学术机构的旧址，档案保存完好。其中被引用最多的一份文献，后人称之为《${d[1]}》。${f ? '署名是' + f.name + '。' : '没有署名。'}`,
+          `${at(s, pl)}的一批教学用具，推演的都是同一个问题。${c.name}后来的记录把它的答案称作《${d[1]}》，并当作常识使用。`,
+        ]) }));
+      return true;
+    };
+
+    const buildWonder = (c, y) => {
+      const s = er.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
+      const f = ruler(c, y);
+      const w = { id: wonders.length, name: properName(c) + er.pick(WONDER[c.sp.kind]), civ: c.id, builder: c.id, sys: s, pl, alive: true };
+      wonders.push(w); c.wonderN++;
+      w.ev = deed(f, ev({ y, type: 'wonder', wonder: w.id, civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.discEv ?? c.lastColony,
+        sum: `${c.polity()}${f ? '在' + f.full + '治下' : ''}建成${w.name}。`,
+        trace: K(c, {
+          flesh: V([
+            `${w.name}占据了${plName(s, pl)}上的一整片高地。结构复杂到需要数月才能完成测绘，表面刻满${c.name}${c.sp.script}，主题是「${c.culture[0]}」。`,
+            `${w.name}的主体至今没有坍塌。奠基铭文记着工期：${tx.int(12, 140)} 年。又记着参与者的人数，末尾多写了一个零，又被人划掉了。`,
+          ]),
+          any: `${w.name}仍在${at(s, pl)}。它的尺度远超过实用所需，上面的${c.name}${c.sp.script}反复记述同一件事：「${c.culture[0]}」。`,
+        }) }));
+      c.stab += 0.06;
+    };
+
+    const enshrine = (c, y, cause) => {
+      const s = c.cap[0], pl = c.cap[1];
+      const r = { id: relics.length, name: properName(c) + er.pick(RELIC_SP[c.sp.id] || RELIC[c.sp.kind]), origin: c.id, holder: c.id, sys: s, pl, lost: false };
+      relics.push(r); c.relic = r;
+      r.ev = ev({ y, type: 'relic', relic: r.id, civ: c.id, sys: s, pl, cause,
+        sum: `${c.polity()}将「${r.name}」供奉于${plName(s, pl)}。`,
+        trace: K(c, {
+          flesh: `一座专为一件器物修建的圣龛，内壁的${c.sp.script}称它为「${r.name}」。龛前的地面被跪拜磨出了两道浅槽。`,
+          any: `一处层层设防的保管设施，只为存放一件东西。${c.name}${c.sp.script}的记录称它为「${r.name}」，并规定任何时候都必须有守卫在场。`,
+        }) });
+    };
+
+    // ===== 主循环：每步 50 年 =====
+    for (let y = 0; y < PRESENT; y += STEP) {
+      for (const s of bStars) if (!s.nova && !reserved.has(s.id) && y >= 300 && er.chance(0.008)) nova(s, y);
       const alive = civs.filter((c) => c.alive && c.origin <= y);
       for (const c of er.shuffle(alive)) {
         if (!c.alive) continue;
         if (!c.founded) {
-          c.founded = true; owner[c.home[0]] = c.id; claim(c.home[0], c);
+          c.founded = true; reserved.delete(c.home[0]);
+          owner[c.home[0]] = c.id; claim(c.home[0], c);
           const p = systems[c.home[0]].planets[c.home[1]];
-          c.lastNeg = null;
-          c.foundEv = ev({ y, type: 'found', civ: c.id, sys: c.home[0], pl: c.home[1], cause: null,
-            sum: c.sp.foundAt === 'star' ? `${c.species}${c.who}在 ${systems[c.home[0]].name} 的恒星日冕中觉醒，建立了${c.polity()}。` : `${c.species}${c.who}在${/[星体界]$/.test(p.climate) ? p.climate : p.climate + '行星'}${plName(c.home[0], c.home[1])}上${c.sp.foundVerb || '崛起'}，建立了${c.polity()}。`,
-            trace: `这里发现${c.sp.city}。最古老的部分使用一种早期的${c.sp.script}，其中反复出现「${c.name}」这个名字，旁边是母星的星图。` });
+          const f = c.sp.kind === 'flesh' && tx.chance(0.6) ? figure(c, 'ruler', y) : null;
+          c.ruler = f;
+          c.foundEv = deed(f, ev({ y, type: 'found', civ: c.id, sys: c.home[0], pl: c.home[1], cause: null,
+            sum: c.sp.foundAt === 'star' ? `${c.species}${c.who}在 ${sysN(c.home[0])} 的恒星日冕中觉醒，建立了${c.polity()}。` : `${c.species}${c.who}在${/[星体界]$/.test(p.climate) ? p.climate : p.climate + '行星'}${plName(c.home[0], c.home[1])}上${c.sp.foundVerb || '崛起'}，建立了${c.polity()}。`,
+            trace: `这里发现${c.sp.city}。最古老的部分使用一种早期的${c.sp.script}，其中反复出现「${c.name}」这个名字，旁边是母星的星图。`
+              + (f ? V([`铭文把建城归于一位名叫${f.name}的${f.title}。`, `最早的纪年从${f.full}即位那一年算起。`]) : '') }));
           continue;
         }
         // 基础演化
-        const atWar = wars.filter((w) => !w.over && (w.a === c.id || w.b === c.id)).length;
-        c.tech = Math.min(10, c.tech + er.range(0.05, 0.19) + c.sp.tech + (c.ethos === '求知' ? 0.06 : 0) + c.trade.size * 0.03);
-        c.stab += (c.sp.stab - c.stab) * 0.12 + er.range(-0.06, 0.06) - atWar * 0.06 - Math.max(0, c.territory.size - 6) * 0.012 + c.trade.size * 0.01;
+        const nWar = atWar(c);
+        c.tech = Math.min(10, c.tech + er.range(c.space ? 0.05 : 0.08, c.space ? 0.19 : 0.24) + c.sp.tech + (c.ethos === '求知' ? 0.06 : 0) + c.trade.size * 0.03);
+        c.stab += (c.sp.stab - c.stab) * 0.12 + er.range(-0.06, 0.06) - nWar * 0.05 - Math.max(0, c.territory.size - 6) * 0.012 + c.trade.size * 0.01 + c.allies.size * 0.01 - (c.overlord != null ? 0.02 : 0);
         c.stab = Math.max(0, Math.min(1, c.stab));
+        for (const f of c.figs.slice()) if (y - f.y0 >= c.sp.life * STEP) retire(f, c, y);
+
+        // 附庸：宗主倒台则自由，宗主虚弱则反抗
+        if (c.overlord != null) {
+          const O = civs[c.overlord];
+          if (!O.alive) {
+            c.overlord = null;
+            ev({ y, type: 'free', civ: c.id, other: O.id, sys: c.cap[0], pl: c.cap[1], cause: O.endEv ?? c.vassalEv,
+              sum: `${O.name}覆灭之后，${c.polity()}不再向任何人纳贡。`,
+              trace: `贡品清单的最后一页是空白的。同一年的记录里，${c.name}第一次没有使用宗主的纪年。` });
+            c.stab += 0.1;
+          } else if (c.space && !fighting(c, O) && (O.stab < 0.42 || atWar(O) > 0) && c.stab > 0.35 && er.chance(0.3)) {
+            const re = ev({ y, type: 'revolt', civ: c.id, other: O.id, sys: c.cap[0], pl: c.cap[1], cause: c.vassalEv,
+              sum: `${c.polity()}拒绝继续向${O.polity()}纳贡，起兵反抗。`,
+              trace: V([
+                `一批${O.name}的贡船停在${plName(c.cap[0], c.cap[1])}的轨道上，货舱是空的，再也没有启航。`,
+                `${O.name}派驻此地的监管站被封死，气闸上贴着一张${c.name}${c.sp.script}写的告示。站内的陈设原样未动。`,
+              ]) });
+            wars.push({ a: c.id, b: O.id, sa: [c.id], sb: [O.id], ev: re, start: y, len: er.int(1, 3), over: false, indep: true, name: `${c.name}独立战争` });
+            setRel(c, O, -0.6);
+          }
+        }
 
         if (!c.space && c.tech >= 3) {
           c.space = true;
-          c.lastColony = ev({ y, type: 'space', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.foundEv,
-            sum: `${c.polity()}首次进入太空。`,
-            trace: `${plName(c.home[0], c.home[1])}的高轨道上发现${c.sp.ship}。内部保留着航行记录，用的是${c.name}${c.sp.script}。` });
+          c.spaceEv = c.lastColony = ev({ y, type: 'space', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.upliftEv ?? c.vassalEv ?? c.foundEv,
+            sum: V([`${c.polity()}首次进入太空。`, `${c.polity()}的第一艘飞船离开了母星。`]),
+            trace: V([
+              `${plName(c.home[0], c.home[1])}的高轨道上发现${c.sp.ship}。内部保留着航行记录，用的是${c.name}${c.sp.script}。`,
+              `${plName(c.home[0], c.home[1])}的轨道上有${c.sp.ship}，从未返航。舱内的${c.name}${c.sp.script}记着 ${tx.int(3, 40)} 次失败的尝试，这是头一次成功的。`,
+            ]) });
           continue;
         }
+
         // 殖民
-        const pCol = { 扩张: 0.4, 贸易: 0.22, 求知: 0.2, 信仰: 0.18, 隐修: 0.07 }[c.ethos] * c.sp.col;
-        if (c.space && er.chance(pCol)) {
-          const opts = [];
-          for (const s of c.territory) for (const n of adj[s]) if (owner[n] == null && systems[n].planets.length && !opts.includes(n)) opts.push(n);
-          if (opts.length) {
-            const sid = er.pick(opts); const pl = pickPlanet(sid, c.sp.prefer || 'solid');
-            owner[sid] = c.id; c.territory.add(sid); claim(sid, c);
-            const hadRuin = [...ruins[sid]].filter((x) => x !== c.id);
-            c.lastColony = ev({ y, type: 'colony', civ: c.id, sys: sid, pl, cause: c.lastColony,
-              sum: `${c.polity()}在${systems[sid].name}星系建立殖民地。`,
-              trace: c.sp.settle ? `${plName(sid, pl)}${c.sp.settle.startsWith('的') ? '' : '上'}${c.sp.settle}` : er.pick([
-                `${plName(sid, pl)}上有一处规划整齐的定居点，建筑使用统一规格的预制模块。奠基碑上用${c.sp.script}刻着首批移民的名单，共 ${er.int(40, 900)} 个名字。`,
-                `${plName(sid, pl)}上发现一座穹顶聚落，气闸门上印着${c.who}的徽记。仓库里还留有几批没有开封的补给。`,
-                `一条从${plName(sid, pl)}延伸到轨道的货运缆索，底座的铭牌用${c.sp.script}记录了殖民地的建立年份。`,
-              ]) });
-            if (hadRuin.length && !c.dug.has(hadRuin[0]) && er.chance(0.7)) {
-              const old = civs[hadRuin[0]]; c.dug.add(old.id);
-              const ce = events.find((e) => e.civ === old.id && (e.type === 'collapse' || e.type === 'vanish'));
-              ev({ y: y + 25, type: 'dig', civ: c.id, other: old.id, sys: sid, pl, cause: ce ? ce.id : null,
-                sum: `${c.who}在${systems[sid].name}发掘出更早的${old.who}遗迹。`,
-                trace: `一处考古营地，工具上印着${c.who}的标记。他们挖掘的对象比营地本身古老得多，探方里露出的是${old.name}${old.sp.script}。` });
+        const pCol = { 扩张: 0.4, 贸易: 0.22, 求知: 0.2, 信仰: 0.18, 隐修: 0.07 }[c.ethos] * c.sp.col * (c.territory.size > 10 ? 0.6 : 1);
+        if (c.space && er.chance(Math.min(0.85, pCol))) colonize(c, y);
+
+        // 接触：探测范围随科技扩大，不必等到疆域相邻
+        if (c.space) {
+          const reach = c.tech >= 6 ? near3 : near2;
+          const meet = new Map();
+          for (const x of c.territory) for (const m of reach[x]) { const oid = owner[m]; if (oid != null && oid !== c.id && !c.contacted.has(oid) && civs[oid].alive && !meet.has(oid)) meet.set(oid, x); }
+          for (const [oid, s] of meet) {
+            const o = civs[oid];
+            if (!o.space) { if (c.watching[oid] == null) primitive(c, o, y); continue; }
+            c.contacted.add(o.id); o.contacted.add(c.id);
+            const wEv = o.watching[c.id], wEv2 = c.watching[o.id];
+            if (wEv != null || wEv2 != null) {
+              // 一方早已在暗中观察另一方
+              const [watcher, seen, we] = wEv != null ? [o, c, wEv] : [c, o, wEv2];
+              setRel(c, o, relInit(c, o) - 0.15);
+              const cy = yearOf(y, we);
+              contactEv[pk(c.id, o.id)] = ev({ y, at: cy, type: 'contact', civ: seen.id, other: watcher.id, sys: seen.home[0], pl: -1, cause: we,
+                sum: `${seen.polity()}的飞船在自家星系外围发现了${watcher.name}的观测站，才知道自己已被注视了 ${Math.max(1, cy - events[we].y)} 年。`,
+                trace: `一座伪装成小行星的观测站，内部的设备属于${watcher.who}。记录从${seen.name}还没有飞船的年代开始，一直写到被发现的那一天。` });
+              continue;
             }
-            continue;
+            setRel(c, o, relInit(c, o));
+            const pl = pickPlanet(s);
+            contactEv[pk(c.id, o.id)] = ev({ y, type: 'contact', civ: c.id, other: o.id, sys: s, pl, cause: c.lastColony,
+              sum: V([`${c.polity()}与${o.polity()}在${sysN(s)}星系首次接触。`, `${c.polity()}的探测器在${sysN(s)}星系外发现了${o.polity()}的信号，双方首次接触。`]),
+              trace: V([
+                `一座信标仍在低功率广播，里面并存着两种记录：${c.name}${c.sp.script}和${o.name}${o.sp.script}。两段内容是相同的问候。`,
+                `${sysN(s)}外围漂着两艘并排停靠的飞船，一艘是${c.name}的制式，一艘是${o.name}的。两船之间拉着一条临时通道，舱壁上画满了成对的符号。`,
+                `一枚${c.name}的探测器，外壳上被加刻了一行${o.name}${o.sp.script}。探测器的日志从那一天起改用两种记录方式并行书写。`,
+                `${at(s, pl)}的一处临时营地，两种制式的设施各占一半。中间的空地上摆着一排实物：矿石、种子、工具，每样下面都有两种标签。`,
+                `一段被${c.name}反复存档的信号，来自${o.name}的方向。存档的批注从「自然现象」改成「待查」，最后改成了「回复」。`,
+                `${sysN(s)}的一颗小天体上，并排立着两座形制完全不同的标记物。较早的一座属于${c.who}，较晚的一座紧挨着它，高度分毫不差。`,
+                `一本双语的词表，载体是${c.name}的，后半部分的笔迹却出自${o.who}。头几页只有数字和元素，往后才出现「我们」和「你们」。`,
+                `一艘${o.name}的小艇被完整地保存在${c.name}的机库里，没有拆解的痕迹。旁边的记录写着归还日期，以及归还时附赠的东西。`,
+              ]) });
           }
         }
-        // 接触
-        const meet = new Map();
-        for (const x of c.territory) for (const m of adj[x]) { const oid = owner[m]; if (oid != null && oid !== c.id && !c.contacted.has(oid) && civs[oid].alive && !meet.has(oid)) meet.set(oid, x); }
-        for (const [oid, s] of meet) {
+
+        // 关系、贸易、结盟、传教、窃密、战争
+        for (const oid of [...c.contacted]) {
           const o = civs[oid];
-          c.contacted.add(o.id); o.contacted.add(c.id);
-          setRel(c, o, relInit(c, o));
-          contactEv[pk(c.id, o.id)] = ev({ y, type: 'contact', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: c.lastColony,
-            sum: `${c.polity()}与${o.polity()}在${systems[s].name}星系首次接触。`,
-            trace: `一座信标仍在低功率广播，里面并存着两种记录：${c.name}${c.sp.script}和${o.name}${o.sp.script}。两段内容是相同的问候。` });
-        }
-        // 关系、贸易、战争
-        for (const oid of c.contacted) {
-          const o = civs[oid];
-          if (!o.alive) continue;
-          let v = getRel(c, o) * 0.97 + er.range(-0.09, 0.09) + (c.trade.has(oid) ? 0.03 : 0);
+          if (!o.alive || !c.alive) continue;
+          let v = getRel(c, o) * 0.97 + er.range(-0.09, 0.09) + (c.trade.has(oid) ? 0.03 : 0) + (c.allies.has(oid) ? 0.03 : 0) - (c.grudge === oid ? 0.06 : 0);
           setRel(c, o, v);
-          const fighting = wars.some((w) => !w.over && pk(w.a, w.b) === pk(c.id, oid));
-          if (!fighting && !c.trade.has(oid) && v > 0.3 && er.chance(0.35)) {
+          const fight = fighting(c, o);
+          const vass = c.overlord === oid || o.overlord === c.id;
+          const key = pk(c.id, oid);
+          if (!c.space || !o.space) continue;
+          if (!fight && !c.trade.has(oid) && v > 0.18 && er.chance(0.4)) {
             c.trade.add(oid); o.trade.add(c.id);
-            const b = border(c, o); const s = b.length ? b[0][0] : c.home[0];
-            const te = ev({ y, type: 'trade', civ: c.id, other: oid, sys: s, pl: pickPlanet(s), cause: contactEv[pk(c.id, oid)],
-              sum: `${c.polity()}与${o.polity()}开通贸易航线。`,
-              trace: `轨道上有一座废弃的中转站，货舱里堆放着两种规格的集装箱。账簿用两种记录方式对照书写。` });
-            c.tradeEv = te; o.tradeEv = te;
+            const b = frontier(c, o); const s = b.length ? b[0][0] : c.cap[0], pl = pickPlanet(s);
+            const te = ev({ y, type: 'trade', civ: c.id, other: oid, sys: s, pl, cause: contactEv[key],
+              sum: V([`${c.polity()}与${o.polity()}开通贸易航线。`, `${c.polity()}与${o.polity()}互设商站，开始定期通航。`]),
+              trace: V([
+                `轨道上有一座废弃的中转站，货舱里堆放着两种规格的集装箱。账簿用两种记录方式对照书写。`,
+                `${at(s, pl)}的一处货栈，地面上画着两套不同的泊位标线，互相重叠。出土的货币有两种，磨损程度相当。`,
+                `一艘${c.name}的货船，货舱里装的却是${o.name}的器物。报关单用${c.name}${c.sp.script}填写，逐项注明了换算比率。`,
+              ]) });
+            c.tradeEv = te; o.tradeEv = te; tradeEvP[key] = te;
+          }
+          if (!fight && !vass && !c.allies.has(oid)) {
+            let foe = null;
+            for (const x of c.contacted) if (x !== oid && civs[x].alive && o.contacted.has(x) && getRel(c, civs[x]) < -0.25 && getRel(o, civs[x]) < -0.25) { foe = civs[x]; break; }
+            if ((foe && v > 0 && er.chance(0.35)) || (c.trade.has(oid) && v > 0.4 && er.chance(0.22))) {
+              c.allies.add(oid); o.allies.add(c.id);
+              const s = c.cap[0], pl = c.cap[1];
+              allyEv[key] = ev({ y, type: 'alliance', civ: c.id, other: oid, sys: s, pl, cause: foe ? (contactEv[pk(c.id, foe.id)] ?? contactEv[key]) : (tradeEvP[key] ?? contactEv[key]),
+                sum: foe ? `${c.polity()}与${o.polity()}结盟，共同对付${foe.polity()}。` : `${c.polity()}与${o.polity()}由通商走向结盟。`,
+                trace: V([
+                  `一份盟约刻在两块相同的金属板上，各用一种记录方式。条款共 ${tx.int(5, 19)} 条，第一条是共同防御。`,
+                  `两支舰队的联合锚地。泊位交错排列，识别信标同时广播${c.name}和${o.name}两种编码。`,
+                  `一套联合制定的信号手册，${c.name}${c.sp.script}和${o.name}${o.sp.script}逐行对照。封面上的修订次数是 ${tx.int(3, 40)}。`,
+                  `${sysN(s)}的一座中继站，两种制式的天线装在同一根桅杆上。值班日志由双方轮流填写，一天不缺。`,
+                  K(c, {
+                    flesh: `${at(s, pl)}的一座会议厅，长桌两侧的座椅是两种不同的规格。墙上并排挂着${c.name}和${o.name}的徽记。`,
+                    any: `${at(s, pl)}有一处专为接待${o.who}而建的设施，环境参数是按对方的需要设定的。入口处并排刻着两个文明的名字。`,
+                  }),
+                ]) });
+              setRel(c, o, v + 0.15);
+            }
+          } else if (c.allies.has(oid) && v < -0.05) {
+            c.allies.delete(oid); o.allies.delete(c.id);
+            ev({ y, type: 'rift', civ: c.id, other: oid, sys: c.cap[0], pl: -1, cause: allyEv[key] ?? contactEv[key],
+              sum: `${c.polity()}与${o.polity()}的盟约破裂。`,
+              trace: `盟约的两份副本只找到了一份，属于${o.name}。另一份原先的位置上，只剩下固定用的卡扣。` });
+          }
+          if (c.ethos === '信仰' && o.ethos !== '信仰' && (!o.sp.ethos || o.sp.ethos.includes('信仰')) && !fight && !c.missioned.has(oid) && er.chance(0.14)) {
+            c.missioned.add(oid);
+            const s = o.cap[0], pl = o.cap[1];
+            if (er.chance(0.4 + v * 0.3 - (o.ethos === '隐修' || o.ethos === '求知' ? 0.15 : 0))) {
+              o.ethos = '信仰'; setRel(c, o, v + 0.35);
+              ev({ y, type: 'convert', civ: c.id, other: oid, sys: s, pl, cause: c.faithEv ?? contactEv[key],
+                sum: `${c.polity()}的传教团说服了${o.polity()}，后者改奉其信仰。`,
+                trace: `${at(s, pl)}的一处仪式场所，器物属于${o.who}，上面的经文却是${c.name}${c.sp.script}。地基下压着更早的${o.name}祭坛。` });
+            } else {
+              setRel(c, o, v - 0.35);
+              c.lastNeg = ev({ y, type: 'expel', civ: oid, other: c.id, sys: s, pl, cause: c.faithEv ?? contactEv[key],
+                sum: `${o.polity()}驱逐了${c.polity()}的传教团。`,
+                trace: V([
+                  `一座只建了地基的圣所。工地上散落着${c.name}的器物，全部被砸成了差不多大小的碎块。`,
+                  `${at(s, pl)}的一份驱逐令，用${o.name}${o.sp.script}写成，限期离境。背面有人用${c.name}${c.sp.script}抄了一段经文，没有抄完。`,
+                  `一艘${c.name}的传教船停在${sysN(s)}的外轨道上，舱门被从外面焊死。船上的经卷一本不少。`,
+                ]) });
+            }
+          }
+          if ((c.ethos === '求知' || c.ethos === '扩张') && o.tech - c.tech > 1.2 && !c.spied.has(oid) && er.chance(0.15)) {
+            c.spied.add(oid); c.tech = Math.min(10, c.tech + 0.6);
+            const caught = er.chance(0.5);
+            const b = frontier(o, c); const s = b.length ? b[0][0] : o.cap[0];
+            const se = ev({ y, type: 'spy', civ: c.id, other: oid, sys: s, pl: -1, cause: contactEv[key],
+              sum: caught ? `${c.polity()}窃取${o.polity()}技术的行动败露。` : `${c.polity()}从${o.polity()}窃得了关键技术。`,
+              trace: `${sysN(s)}外围一座伪装成气象站的监听设施，天线对准${o.name}的船坞。设备属于${c.who}，存储器里是整套${o.name}的工程图纸。` + (caught ? '气闸是从外面被炸开的。' : '') });
+            if (caught) { setRel(c, o, getRel(c, o) - 0.35); o.lastNeg = se; }
           }
           const hawk = (c.ethos === '扩张' ? 0.15 : 0.04) * c.sp.hawk;
-          if (!fighting && (v < -0.15 || er.chance(hawk)) && er.chance(0.3)) {
-            const b = border(c, o);
-            if (!b.length) continue;
-            if (c.trade.has(oid)) { c.trade.delete(oid); o.trade.delete(c.id); }
-            const grievance = c.lastNeg && y - events[c.lastNeg]?.y <= 300 ? c.lastNeg : contactEv[pk(c.id, oid)];
-            const s = b[0][0];
-            const we = ev({ y, type: 'war', civ: c.id, other: oid, sys: s, pl: pickPlanet(s), cause: grievance,
-              sum: `${c.polity()}向${o.polity()}宣战。`,
-              trace: `一份宣战文书被铸在金属板上，立在${systems[s].name}的边境哨站。落款是${c.polity()}的最高议事机构，列举了 ${er.int(3, 9)} 条理由。` });
-            wars.push({ a: c.id, b: oid, ev: we, start: y, len: er.int(2, 6), over: false });
-            setRel(c, o, -0.6);
+          const grudge = c.grudge === oid;
+          if (!fight && !vass && c.overlord == null && (grudge || !(y - (c.peaceAt?.[oid] ?? -999) < 200)) && (getRel(c, o) < -0.25 || er.chance(hawk) || (grudge && er.chance(0.5))) && er.chance(0.28)) {
+            if (!frontier(c, o).length) continue;
+            let cause = grudge ? c.grudgeEv : recent(c.lastNeg, y, 300) ? c.lastNeg : contactEv[key];
+            if (c.allies.has(oid)) {
+              c.allies.delete(oid); o.allies.delete(c.id);
+              cause = o.lastNeg = ev({ y, type: 'betray', civ: c.id, other: oid, sys: c.cap[0], pl: -1, cause: allyEv[key] ?? contactEv[key],
+                sum: `${c.polity()}撕毁了与${o.polity()}的盟约。`,
+                trace: V([
+                  `一份盟约的${c.name}文本，被从中间裁成两半。裁口整齐，像是在某个正式场合当众完成的。`,
+                  `${o.name}的档案里存着一份盟约，页边有后来加上的批注，只有一句：「他们先动的手。」`,
+                ]) });
+            }
+            declare(c, o, y, cause, grudge && c.relicLost ? `，要求归还「${c.relicLost.name}」` : '');
           }
         }
-        // 内部事件
-        const negs = [];
+        if (!c.alive) continue;
+
+        // 内部事件：每步至多发生一件
         if (er.chance((0.02 + (c.trade.size ? 0.03 : 0)) * c.sp.plague)) {
           const fromTrade = c.trade.size && er.chance(0.6);
           c.stab -= 0.25;
-          const s = er.pick([...c.territory]);
-          c.lastNeg = ev({ y, type: 'plague', civ: c.id, sys: s, pl: pickPlanet(s, 'hab'), cause: fromTrade ? c.tradeEv : null,
+          const s = er.pick([...c.territory]), pl = pickPlanet(s, 'hab');
+          const generic = c.sp.plagueTrace === SP_DEF.plagueTrace;
+          c.plagueEv = c.lastNeg = ev({ y, type: 'plague', civ: c.id, sys: s, pl, cause: fromTrade ? c.tradeEv : null,
             sum: c.sp.plagueSum.replace('{P}', c.polity()) + (fromTrade ? '，最早出现在贸易港。' : '。'),
-            trace: c.sp.plagueTrace + (fromTrade ? `残存的记录显示，它最早随一艘外国货船抵达。` : `残存的记录没有说明它从何而来。`) });
+            trace: (generic ? V([
+              c.sp.plagueTrace,
+              `一座仓促扩建的医院，病房一直加盖到了街上。病历用${c.sp.script}书写，最后几本只填了入院日期。`,
+              `${at(s, pl)}的一片聚落，每扇门上都画着同一个记号。记号的颜料越往外围越新。`,
+            ]) : c.sp.plagueTrace) + (fromTrade ? `残存的记录显示，它最早随一艘外国货船抵达。` : `残存的记录没有说明它从何而来。`) });
           continue;
         }
-        if (c.territory.size <= 3 && c.tech > 4 && er.chance(0.06 * c.sp.deplete)) {
+        if (c.sp.prefer !== 'gas' && er.chance(0.008) && impact(c, y)) continue;
+        if (c.sp.kind !== 'field' && er.chance(0.02) && flare(c, y)) continue;
+        if (c.tech > 4 && er.chance(c.depleteEv != null ? 0.05 : 0.012) && climateShift(c, y)) continue;
+        if (c.territory.size <= 3 && c.tech > 4 && c.depleteEv == null && er.chance(0.06 * c.sp.deplete)) {
           c.stab -= 0.18;
-          c.lastNeg = ev({ y, type: 'deplete', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastColony,
+          const p = systems[c.cap[0]].planets[c.cap[1]];
+          c.depleteEv = c.lastNeg = ev({ y, type: 'deplete', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: c.lastColony,
             sum: `${c.polity()}的核心矿藏与水源接近枯竭。`,
-            trace: `${plName(c.home[0], c.home[1])}地表遍布采掘坑，最深处已经接近地幔。工程档案的最后几页写满了配给数字。` });
+            trace: p && p.hab && tx.chance(0.5)
+              ? `${plName(c.cap[0], c.cap[1])}的河床全部干涸，沿岸的取水口一个比一个建得低。最低的一个下面已经没有河道了。`
+              : V([
+                `${plName(c.cap[0], c.cap[1])}地表遍布采掘坑，最深处已经接近地幔。工程档案的最后几页写满了配给数字。`,
+                `${plName(c.cap[0], c.cap[1])}的轨道上漂着一圈废弃的采掘船，货舱都是空的。最后一批出航记录里，每艘船的航程都比上一艘更远。`,
+                `${c.name}这一时期的器物，用料一代比一代薄。同一种容器，最晚的一批只有最早的三分之一重。`,
+              ]) });
           continue;
         }
-        if (c.stab > 0.68 && c.tech > 5 && er.chance(0.07 * c.sp.golden)) {
-          const s = er.pick([...c.territory]); const pl = pickPlanet(s, 'solid');
-          ev({ y, type: 'golden', civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.lastColony,
-            sum: `${c.polity()}进入繁荣时期，在${systems[s].name}建造了大型纪念建筑。`,
-            trace: `${plName(s, pl)}上矗立着一座巨型建筑，结构复杂到需要数月才能完成测绘。表面刻满${c.name}${c.sp.script}和星图，主题是「${c.culture[0]}」。` });
-          c.stab += 0.05;
+        if (c.stab > 0.6 && c.tech > 4 && er.chance(0.13 * c.sp.golden)) {
+          if (c.wonderN < 3 && er.chance(0.6)) buildWonder(c, y);
+          else {
+            const s = er.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
+            const ge = ev({ y, type: 'golden', civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.lastColony,
+              sum: `${c.polity()}进入繁荣时期。`,
+              trace: K(c, {
+                flesh: `${at(s, pl)}这一时期的地层格外厚，出土的器物精细而多样。连普通住宅的地基都用了加工过的石材。`,
+                any: `${at(s, pl)}这一时期的遗物数量是前后时期的数倍，工艺也最精细。记录的主题从生存转向了「${c.culture[0]}」。`,
+              }) });
+            c.stab += 0.05;
+            if (!c.relic && er.chance(0.3)) enshrine(c, y, ge);
+          }
           continue;
         }
-        if (c.ethos === '信仰' && er.chance(0.05)) {
-          const s = er.pick([...c.territory]); const pl = pickPlanet(s, 'solid');
-          ev({ y, type: 'faith', civ: c.id, sys: s, pl, cause: c.lastNeg,
-            sum: `${c.polity()}兴起新的宗教运动，在${systems[s].name}建立圣所。`,
-            trace: `一座朝向${c.name}母星方向的圣所。石阶被朝圣者的足迹磨出了凹痕。` });
+        if (c.space && er.chance(c.ethos === '求知' ? 0.075 : 0.025) && discover(c, y)) continue;
+        if (c.ethos === '信仰' && er.chance(0.06)) {
+          const s = er.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
+          const f = figure(c, 'prophet', y);
+          c.faithEv = deed(f, ev({ y, type: 'faith', civ: c.id, sys: s, pl, cause: c.lastNeg,
+            sum: f ? `${f.full}在${c.polity()}境内掀起新的宗教运动，在${sysN(s)}建立圣所。` : `${c.polity()}兴起新的宗教运动，在${sysN(s)}建立圣所。`,
+            trace: V([
+              `一座朝向${c.name}母星方向的圣所。入口处的地面被朝圣者磨出了凹痕。`,
+              `${at(s, pl)}的一处圣地，周围没有任何居住设施，只有一条绕行的路。路面被踩低了近一米。`,
+              `一批内容相同的经文抄本，用${c.name}${c.sp.script}写成，散布在${sysN(s)}各处。${f ? '每一本的扉页上都写着' + f.name + '的名字。' : '没有一本署名。'}`,
+            ]) }));
           c.stab += 0.1;
+          if (!c.relic && er.chance(0.5)) enshrine(c, y, c.faithEv);
+          continue;
+        }
+        if (c.ruler && c.sp.life < 100 && c.stab < 0.5 && er.chance(0.12)) {
+          const f = c.ruler, s = c.cap[0], pl = c.cap[1];
+          c.stab -= 0.15;
+          c.lastNeg = deed(f, ev({ y, type: 'assassin', civ: c.id, sys: s, pl, cause: c.lastNeg,
+            sum: `${f.full}遇刺身亡，${c.polity()}陷入继承危机。`,
+            trace: K(c, {
+              flesh: V([
+                `${at(s, pl)}的议事厅里，主座的靠背上有一个烧灼的孔洞。此后 ${tx.int(3, 30)} 年的官方文书，落款处是空的。`,
+                `一份没有发出的讣告，用${c.sp.script}起草，死因一栏改了三次。最后一稿只写了「意外」。`,
+                `${at(s, pl)}的一条礼仪大道，中段的路面是后来重铺的，颜色略深。重铺的那一段，两侧建筑的窗户都换成了实墙。`,
+              ]),
+              any: `${c.name}的记录在这一年出现了两个互不承认的落款。更早的那个，此后再没有出现过。`,
+            }) }));
+          retire(f, c, y, true);
           continue;
         }
         if (c.stab < 0.3 && y - c.unrestAt > 150 && er.chance(0.5)) {
           c.unrestAt = y;
-          const s = c.home[0];
-          const ue = ev({ y, type: 'unrest', civ: c.id, sys: s, pl: c.home[1], cause: c.lastNeg,
-            sum: `${c.polity()}爆发大规模内乱。`,
-            trace: c.sp.unrest });
+          const s = c.cap[0];
+          const ue = ev({ y, type: 'unrest', civ: c.id, sys: s, pl: c.cap[1], cause: c.lastNeg,
+            sum: V([`${c.polity()}爆发大规模内乱。`, `${c.polity()}陷入内战。`]),
+            trace: c.sp.unrest === SP_DEF.unrest ? V([c.sp.unrest, ...UNREST_ALT]) : V([
+              c.sp.unrest, c.sp.unrest,
+              `${c.name}${c.sp.script}的记录在这一年分成了两支，彼此不再引用对方。两支都自称正统。`,
+              `${at(s, c.cap[1])}的设施被一道临时修筑的屏障一分为二。屏障两侧的遗物属于同一个文明，却朝着相反的方向设防。`,
+            ]) });
           c.lastNeg = ue;
-          if (c.territory.size >= 4 && er.chance(0.35)) {
-            const hd = hops(c.home[0]);
-            const far = [...c.territory].filter((s) => s !== c.home[0]).sort((a, b) => hd[b] - hd[a]);
+          const hd = c.territory.size >= 4 ? hops(s) : null;
+          const far = hd ? [...c.territory].filter((x) => x !== s && systems[x].planets.length).sort((a, b) => hd[b] - hd[a]) : [];
+          if (far.length >= 2 && er.chance(0.35)) {
             const take = far.slice(0, Math.max(1, Math.floor(far.length / 2)));
             const nhSys = take[0];
             let nhPl = systems[nhSys].planets.findIndex((p) => p.kind === 'rock' || p.kind === 'super');
-            if (nhPl < 0) nhPl = 0;
+            if (c.sp.prefer === 'gas' || nhPl < 0) nhPl = pickPlanet(nhSys, c.sp.prefer || 'solid');
             const oldName = c.polity();
             const nc = makeCiv([nhSys, nhPl], y, c, c.sp);
             nc.founded = true; nc.space = true; nc.stab = 0.6;
-            for (const s of take) { c.territory.delete(s); nc.territory.add(s); owner[s] = nc.id; }
+            nc.territory.clear();
+            for (const x of take) { c.territory.delete(x); nc.territory.add(x); owner[x] = nc.id; }
             nc.contacted.add(c.id); c.contacted.add(nc.id); setRel(c, nc, -0.4);
-            nc.foundEv = ev({ y: y + 10, type: 'schism', civ: nc.id, other: c.id, sys: nhSys, pl: nhPl, cause: ue,
-              sum: `${oldName}的边远殖民地宣布独立，成立${nc.polity()}。`,
-              trace: `一份独立宣言的原件保存在真空柜中。签名者全部来自边缘星系，使用的是${c.name}${c.sp.script}的一种变体。` });
+            const f = figure(nc, 'ruler', y); nc.ruler = f;
+            nc.foundEv = deed(f, ev({ y, type: 'schism', civ: nc.id, other: c.id, sys: nhSys, pl: nhPl, cause: ue,
+              sum: `${oldName}的边远殖民地${f ? '在' + f.full + '带领下' : ''}宣布独立，成立${nc.polity()}。`,
+              trace: V([
+                `一份独立宣言的原件保存在真空柜中。签名者全部来自边缘星系，使用的是${c.name}${c.sp.script}的一种变体。`,
+                `${at(nhSys, nhPl)}的一幅星图，只画到本地为止。星图之外的部分是被裁掉的，裁下来的那一半没有找到。`,
+              ]) }));
             nc.lastColony = nc.foundEv;
             contactEv[pk(c.id, nc.id)] = nc.foundEv;
             c.stab += 0.18;
-          } else if (er.chance(0.35)) {
+          } else if (er.chance(0.4)) {
             const old = c.polity();
-            const opts = c.sp.pol.filter((k) => k !== c.society);
-            c.society = er.pick(opts);
-            ev({ y: y + 10, type: 'coup', civ: c.id, sys: s, pl: c.home[1], cause: ue,
-              sum: `${old}被推翻，${c.polity()}取而代之。`,
-              trace: `前任统治者的雕像被推倒，基座被重新刻上了「${c.polity()}」的名字。` });
+            c.society = er.pick(c.sp.pol.filter((k) => k !== c.society));
+            if (c.ruler) retire(c.ruler, c, y, true);
+            const f = figure(c, 'ruler', y); c.ruler = f;
+            c.coupEv = deed(f, ev({ y, type: 'coup', civ: c.id, sys: s, pl: c.cap[1], cause: ue,
+              sum: f ? `${f.full}推翻了${old}，建立${c.polity()}。` : `${old}被推翻，${c.polity()}取而代之。`,
+              trace: K(c, {
+                flesh: V([
+                  `前任统治者的雕像被推倒，基座被重新刻上了「${c.polity()}」的名字。`,
+                  `官署的大门换过一次，旧门被砌进了新门旁边的墙里。新门的门楣上刻着「${c.polity()}」。`,
+                ]),
+                any: `官方记录的抬头在这一年换成了「${c.polity()}」。此前的记录没有销毁，只是被统一移到了最底层。`,
+              }) }));
             c.stab += 0.25;
           }
           continue;
         }
-        if (c.tech >= c.sp.vanish && er.chance(0.06)) {
-          ev({ y, type: 'vanish', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastColony,
+        if (c.tech >= c.sp.vanish && er.chance(0.02)) {
+          const s = c.cap[0], pl = c.cap[1];
+          const ve = ev({ y, type: 'vanish', civ: c.id, sys: s, pl, cause: c.discEv ?? c.lastColony,
             sum: `${c.polity()}在数年之内停止了一切通讯，原因不明。`,
-            trace: `所有设施完好无损，能源系统仍在运转，但没有任何居民。最后一条公开广播只有一行数学公式。` });
-          c.alive = false; c.endYear = y; c.fate = '消失';
-          for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); }
+            trace: V([
+              `所有设施完好无损，能源系统仍在运转，但没有任何居民。最后一条公开广播只有一行数学公式。`,
+              `${at(s, pl)}的一切都停在原位，没有打斗或撤离的痕迹。${c.name}${c.sp.script}的最后一条记录是一个问句，没有人作答。`,
+            ]) });
+          c.alive = false; c.endYear = events[ve].y; c.fate = '消失'; c.endEv = ve;
+          for (const x of c.territory) { owner[x] = null; ruins[x].add(c.id); }
           c.territory.clear();
-          for (const w of wars) if (!w.over && (w.a === c.id || w.b === c.id)) w.over = true;
+          for (const w of wars) { if (w.over) continue; if (w.a === c.id || w.b === c.id) w.over = true; else { w.sa = w.sa.filter((x) => x !== c.id); w.sb = w.sb.filter((x) => x !== c.id); } }
+          for (const a of c.allies) civs[a].allies.delete(c.id);
+          c.allies.clear();
+          dropRelics(c, ve, y);
           continue;
         }
         if (c.stab < 0.1) collapse(c, y, c.lastNeg, false);
       }
+
       // 战争推进
       for (const w of wars) {
         if (w.over) continue;
         const A = civs[w.a], B = civs[w.b];
         if (!A.alive || !B.alive) { w.over = true; continue; }
-        const b = border(A, B);
-        if (b.length && er.chance(0.45)) {
-          const [s] = er.pick(b);
-          const pl = pickPlanet(s);
-          const be = ev({ y, type: 'battle', civ: w.a, other: w.b, sys: s, pl, cause: w.ev,
-            sum: `${A.who}与${B.who}的舰队在${systems[s].name}星系交战。`,
-            trace: `${plName(s, pl)}附近散布着大量舰船残骸，分属两种不同的工艺体系。部分残骸仍在缓慢旋转。` });
-          A.lastNeg = be; B.lastNeg = be;
+        const str = (c) => c.tech * (1 + c.territory.size * 0.3) * (0.5 + c.stab) * er.range(0.7, 1.3);
+        const side = (ids, main) => ids.reduce((t, id) => t + (civs[id].alive ? str(civs[id]) * (id === main ? 1 : 0.5) : 0), 0);
+        const b = frontier(A, B);
+        if (b.length && er.chance(0.36)) {
+          const [s] = er.pick(b), pl = pickPlanet(s);
+          const [bw, bl] = er.chance(0.5) ? [A, B] : [B, A];
+          const f = bw.figs.find((x) => x.role === 'commander') || (tx.chance(0.5) ? figure(bw, 'commander', y) : null);
+          const be = deed(f, ev({ y, type: 'battle', civ: w.a, other: w.b, sys: s, pl, cause: w.ev,
+            sum: V([
+              `${A.who}与${B.who}的舰队在${sysN(s)}星系交战。`,
+              `${bw.who}${f ? '的' + f.full : ''}在${sysN(s)}星系击退了${bl.who}的舰队。`,
+              `${w.name}中，双方在${sysN(s)}星系打了一场没有结果的会战。`,
+            ]),
+            trace: V([
+              `${plName(s, pl)}附近散布着大量舰船残骸，分属两种不同的工艺体系。部分残骸仍在缓慢旋转。`,
+              `${plName(s, pl)}的轨道上有一条细长的碎片带，成分与自然形成的星环不符。最大的一块上还能辨认出${bl.name}的舷号。`,
+              `一艘${bl.name}的战舰，舰体被整齐地切成两段。舰桥的日志停在交战开始后的第 ${tx.int(4, 55)} 分钟。`,
+              `${sysN(s)}的一座野战修理站，泊位上还系着 ${tx.int(3, 20)} 艘没修完的${bw.name}战舰。备件库是空的。`,
+              `一片漂浮的墓标，每一枚都刻着舰名和日期，日期全部相同。制式是${bl.name}的，立标的却是${bw.who}。`,
+              `${plName(s, pl)}的拉格朗日点上有一座被击穿的指挥站。作战图还亮着，上面${bl.name}的舰队标记停在原地，没有来得及移动。`,
+              solidAt(s, pl) ? `${plName(s, pl)}上有一片被轨道轰炸过的平原，弹坑排成规则的行列。坑底的残片出自${bw.name}的弹药。`
+                : `${plName(s, pl)}的云层之上漂着一片救生舱，舱门都开着。舱体的制式属于${bl.name}，没有一个舱里留着记录。`,
+            ]) }));
+          A.lastNeg = be; B.lastNeg = be; bl.stab -= 0.03;
         }
-        if ((y - w.start) / STEP >= w.len) {
-          w.over = true;
-          const str = (c) => c.tech * (1 + c.territory.size * 0.3) * (0.5 + c.stab) * er.range(0.7, 1.3);
-          const sa = str(A), sb = str(B);
-          const [win, lose] = sa > sb ? [A, B] : [B, A];
-          const fr = border(win, lose).map((x) => x[1]);
-          const take = [...new Set(fr)].slice(0, er.int(1, 3));
-          if (take.length && Math.max(sa, sb) / Math.min(sa, sb) > 1.2) {
-            for (const s of take) { lose.territory.delete(s); win.territory.add(s); owner[s] = win.id; ruins[s].add(lose.id); }
-            const s = take[0];
-            const ce = ev({ y, type: 'conquest', civ: win.id, other: lose.id, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
-              sum: `${win.polity()}击败${lose.polity()}，夺取了${take.map((t) => systems[t].name).join('、')}。`,
-              trace: `这里有两层截然不同的遗迹：底层属于${lose.who}，上层由${win.who}改建。许多${lose.name}${lose.sp.script}被刻意抹去。` });
-            lose.stab -= take.includes(lose.home[0]) ? 0.35 : 0.15; lose.lastNeg = ce;
-            if (lose.territory.size === 0 || take.includes(lose.home[0]) && lose.territory.size <= 1) {
-              for (const s2 of lose.territory) { owner[s2] = win.id; win.territory.add(s2); }
-              lose.territory.clear();
-              collapse(lose, y + 10, ce, true);
-            }
+        if ((y - w.start) / STEP < w.len) continue;
+        w.over = true;
+        const sa = side(w.sa, w.a), sb = side(w.sb, w.b);
+        const endY = yearOf(y, w.ev), yrs = Math.max(1, endY - events[w.ev].y);
+        if (w.indep) {
+          // 附庸的独立战争：守方只要不输就算赢
+          if (sa > sb * 0.75) {
+            A.overlord = null; setRel(A, B, -0.3); A.stab += 0.15; B.stab -= 0.1;
+            B.lastNeg = ev({ y, at: endY, type: 'indep', civ: A.id, other: B.id, sys: A.cap[0], pl: A.cap[1], cause: w.ev,
+              sum: `${A.polity()}赢得独立，不再向${B.polity()}纳贡。`,
+              trace: `贡品清单在这一年中断。最后一行之后，有人用${A.name}${A.sp.script}补了一句话，只有两个词。` });
           } else {
-            const s = border(A, B)[0]?.[0] ?? A.home[0];
-            const pe = ev({ y, type: 'peace', civ: w.a, other: w.b, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
-              sum: `${A.polity()}与${B.polity()}签订停战协定，边界维持原状。`,
-              trace: `一块界碑立在${systems[s].name}，两侧分别用${A.name}${A.sp.script}和${B.name}${B.sp.script}标出各自的疆域。` });
-            setRel(A, B, -0.2);
-            A.lastNeg = pe; B.lastNeg = pe;
+            A.stab -= 0.2;
+            A.lastNeg = ev({ y, at: endY, type: 'crush', civ: B.id, other: A.id, sys: A.cap[0], pl: A.cap[1], cause: w.ev,
+              sum: `${B.polity()}镇压了${A.polity()}的反抗。`,
+              trace: `反抗持续了 ${yrs} 年。此后的贡品清单上，数目比从前多了一倍，字迹换成了${B.name}${B.sp.script}。` });
+          }
+          continue;
+        }
+        const [win, lose] = sa > sb ? [A, B] : [B, A];
+        const take = [...new Set(frontier(win, lose).map((x) => x[1]))].slice(0, er.int(1, 3));
+        if (take.length && Math.max(sa, sb) / Math.min(sa, sb) > 1.2) {
+          for (const s of take) { lose.territory.delete(s); win.territory.add(s); owner[s] = win.id; ruins[s].add(lose.id); }
+          const s = take[0], pl = pickPlanet(s, 'solid');
+          const f = win.figs.find((x) => x.role === 'commander');
+          const names = take.map((t) => sysN(t)).join('、');
+          const ce = deed(f, ev({ y, at: endY, type: 'conquest', civ: win.id, other: lose.id, sys: s, pl, cause: w.ev,
+            sum: V([
+              `${win.polity()}击败${lose.polity()}，夺取了${names}。`,
+              `${w.name}打了 ${yrs} 年，以${win.polity()}的胜利告终，${lose.polity()}割让${names}。`,
+              f ? `${f.full}率${win.who}舰队攻占${names}，${lose.polity()}战败。` : `${win.who}的舰队攻占${names}，${lose.polity()}战败。`,
+            ]),
+            trace: V([
+              `这里有两层截然不同的遗迹：底层属于${lose.who}，上层由${win.who}改建。许多${lose.name}${lose.sp.script}被刻意抹去。`,
+              `${at(s, pl)}，${lose.name}的设施被改作他用。入口处原有的${lose.sp.script}被凿平，新刻的${win.sp.script}只有原来一半深。`,
+              `一份投降文书的副本，用${lose.name}${lose.sp.script}写成，页边有${win.who}加注的译文。割让的星系列了 ${take.length} 个。`,
+            ]) }));
+          const capLost = take.includes(lose.cap[0]);
+          lose.stab -= capLost ? 0.35 : 0.15; lose.lastNeg = ce; win.stab += 0.04;
+          // 奇观：毁于战火，或者易主
+          for (const wd of wonders) {
+            if (!wd.alive || !take.includes(wd.sys) || wd.civ !== lose.id) continue;
+            if (er.chance(0.45)) {
+              wd.alive = false;
+              lose.lastNeg = ev({ y, type: 'sack', wonder: wd.id, civ: win.id, other: lose.id, sys: wd.sys, pl: wd.pl, cause: ce,
+                sum: `${win.who}攻占${sysN(wd.sys)}时，${wd.name}被毁。`,
+                trace: `${wd.name}的残骸。承重结构是被定向炸断的，不是自然坍塌。碎块上的${civs[wd.builder].name}${civs[wd.builder].sp.script}还可以拼读。` });
+              lose.grudge = win.id; lose.grudgeEv = lose.lastNeg;
+            } else wd.civ = win.id;
+          }
+          // 圣物：被夺走，或者被夺回
+          for (const r of relics) {
+            if (r.lost || r.holder !== lose.id || !(take.includes(r.sys) || r.origin === win.id)) continue; // 失主打赢了，归还圣物就是和约的一部分
+            const from = [r.sys, r.pl], back = r.origin === win.id;
+            r.holder = win.id; r.sys = win.cap[0]; r.pl = win.cap[1];
+            if (back) {
+              ev({ y, type: 'reclaim', relic: r.id, civ: win.id, other: lose.id, sys: r.sys, pl: r.pl, cause: ce,
+                sum: `${win.polity()}夺回了「${r.name}」。`,
+                trace: `「${r.name}」回到了原处。基座上原有的轮廓与它严丝合缝，只是旁边多了一道修补过的裂痕。` });
+              if (win.grudge === lose.id) { win.grudge = null; win.relicLost = null; }
+              win.stab += 0.1;
+            } else {
+              const le = ev({ y, type: 'loot', relic: r.id, civ: win.id, other: lose.id, sys: from[0], pl: from[1], cause: ce,
+                sum: `${win.polity()}夺走了${lose.who}的「${r.name}」。`,
+                trace: `保管「${r.name}」的地方是空的。基座上留着一个轮廓，周围的防护是从外面被破开的。` });
+              ev({ y, type: 'trophy', relic: r.id, civ: win.id, other: lose.id, sys: r.sys, pl: r.pl, cause: le,
+                sum: `「${r.name}」被陈列在${plName(r.sys, r.pl)}，作为战胜${lose.polity()}的纪念。`,
+                trace: `一件明显不属于这里的器物，表面是${civs[r.origin].name}${civs[r.origin].sp.script}。陈列它的底座上另有一行${win.name}${win.sp.script}，记着夺得它的年份。` });
+              if (r.origin === lose.id) { lose.grudge = win.id; lose.grudgeEv = le; lose.relicLost = r; lose.lastNeg = le; }
+            }
+          }
+          if (lose.territory.size === 0 || (capLost && lose.territory.size <= 1)) {
+            for (const s2 of lose.territory) { owner[s2] = win.id; win.territory.add(s2); }
+            lose.territory.clear();
+            collapse(lose, y, ce, true);
+          } else {
+            if (capLost) moveCapital(lose, y, ce);
+            if (!lose.territory.has(lose.cap[0])) { const s2 = [...lose.territory][0]; lose.cap = [s2, pickPlanet(s2, lose.sp.prefer || 'solid')]; }
+            if (lose.stab < 0.32 && lose.overlord == null && win.overlord == null && er.chance(0.55)) {
+              lose.overlord = win.id; lose.allies.forEach((a) => civs[a].allies.delete(lose.id)); lose.allies.clear();
+              lose.vassalEv = lose.lastNeg = ev({ y, type: 'vassal', civ: lose.id, other: win.id, sys: lose.cap[0], pl: lose.cap[1], cause: ce,
+                sum: `战败的${lose.polity()}向${win.polity()}称臣纳贡。`,
+                trace: V([
+                  `一份逐年续写的贡品清单，用${win.name}${win.sp.script}和${lose.name}${lose.sp.script}对照记录。头一年的数目被划掉，改成了更大的数字。`,
+                  `${at(lose.cap[0], lose.cap[1])}有一座${win.name}样式的建筑，位置比${lose.name}自己的中枢还要高。里面只有一间屋子，用来清点贡品。`,
+                ]) });
+            }
+          }
+        } else {
+          const s = frontier(A, B)[0]?.[0] ?? A.cap[0], pl = pickPlanet(s, 'solid');
+          const pe = ev({ y, at: endY, type: 'peace', civ: w.a, other: w.b, sys: s, pl, cause: w.ev,
+            sum: V([
+              `${A.polity()}与${B.polity()}签订停战协定，边界维持原状。`,
+              `${w.name}打了 ${yrs} 年，${A.polity()}与${B.polity()}最终停战，谁也没有得到新的领土。`,
+            ]),
+            trace: V([
+              `一块界碑立在${sysN(s)}，两侧分别用${A.name}${A.sp.script}和${B.name}${B.sp.script}标出各自的疆域。`,
+              `${sysN(s)}的一座中立空间站，会议厅的两端各有一套规格不同的设施。停战文本的两种版本并排镶在墙上，条款数目相同。`,
+              `${at(s, pl)}的一片战俘营旧址，两种制式的营房隔着一条空地相对。交换名单上的人数，两边恰好相等。`,
+            ]) });
+          setRel(A, B, -0.05);
+          A.lastNeg = pe; B.lastNeg = pe;
+          const r = A.relicLost;
+          if (A.grudge === B.id && r && r.holder === B.id && !r.lost && er.chance(0.6)) {
+            r.holder = A.id; r.sys = A.cap[0]; r.pl = A.cap[1]; A.grudge = null; A.relicLost = null; A.stab += 0.1;
+            ev({ y, type: 'reclaim', relic: r.id, civ: A.id, other: B.id, sys: r.sys, pl: r.pl, cause: pe,
+              sum: `作为停战的条件，${B.polity()}把「${r.name}」还给了${A.polity()}。`,
+              trace: `「${r.name}」回到了原处。随它一同送回的还有一只${B.name}样式的匣子，里面是空的。` });
           }
         }
+        (A.peaceAt = A.peaceAt || {})[B.id] = y; (B.peaceAt = B.peaceAt || {})[A.id] = y;
       }
     }
 
@@ -1036,12 +1874,13 @@ const Gen = (() => {
     for (const s of systems) {
       if (s.type === 'S') continue;
       const m = Math.min(...hd.map((h) => h[s.id]));
-      const near = adj[s.id].some((n) => traceSys.has(n)) ? 2 : 0;
+      const near = adj[s.id].some((x) => traceSys.has(x)) ? 2 : 0;
       const sc = Math.min(m, 4) + near / 2 + (traceSys.has(s.id) ? 3 : 0);
       if (sc > best) { best = sc; start = s.id; }
     }
 
     // ===== 探索期：存续的文明继续演化，以 10 天为一步，预先推演 10 年 =====
+    // 十年相对于三千年只是一瞬：每个文明大约每年做一次决定，战争以月计
     const histCount = events.length;
     const LIVE_DAYS = 3650, DSTEP = 10;
     const baseOwner = owner.slice();
@@ -1049,7 +1888,6 @@ const Gen = (() => {
     for (const c of civs) { c.alive0 = c.alive; c.society0 = c.society; }
     const lr = R(seed, 'live');
     let LD = 0;
-    const lname = (sid) => systems[sid].name;
     const lev = (o) => { o.live = true; o.day = LD; o.y = PRESENT + Math.floor(LD / 365); return ev(o); };
     const liveClaim = (sid, c) => {
       const s = systems[sid];
@@ -1058,150 +1896,227 @@ const Gen = (() => {
       return old;
     };
     const lwars = [];
-    const fighting = (a, b) => lwars.some((w) => !w.over && pk(w.a, w.b) === pk(a.id, b.id));
+    const lfighting = (a, b) => lwars.some((w) => !w.over && pk(w.a, w.b) === pk(a.id, b.id));
     const endCiv = (c, fate, own) => {
       c.alive = false; c.endDay = LD; c.endYear = PRESENT + Math.floor(LD / 365); c.fate = fate;
       for (const s of c.territory) { owner[s] = null; ruins[s].add(c.id); own.push([s, null]); }
       c.territory.clear();
+      for (const a of c.allies) civs[a].allies.delete(c.id);
+      c.allies.clear();
       for (const w of lwars) if (!w.over && (w.a === c.id || w.b === c.id)) w.over = true;
     };
-    const PROJECTS = ['第一座跃迁信标', '环绕母星的轨道环', '一座深空观测阵列', '一张恒星能量收集网', '一座行星级档案库'];
-    for (const c of civs) c.nextDay = lr.int(10, 70);
+    const PROJECTS = ['第一座跃迁信标', '环绕母星的轨道环', '一座深空观测阵列', '一张恒星能量收集网', '一座行星级档案库', '一条连接两颗行星的货运缆索', '一座恒星际中继站'];
+    for (const c of civs) c.nextDay = lr.int(20, 600);
     for (LD = DSTEP; LD <= LIVE_DAYS; LD += DSTEP) {
       const alive = civs.filter((c) => c.alive);
       for (const c of lr.shuffle(alive)) {
         if (!c.alive) continue;
-        const atWar = lwars.filter((w) => !w.over && (w.a === c.id || w.b === c.id)).length;
+        const nWar = lwars.filter((w) => !w.over && (w.a === c.id || w.b === c.id || w.help.includes(c.id))).length;
         c.tech = Math.min(10, c.tech + 0.003 + c.sp.tech * 0.02);
-        c.stab = Math.max(0, Math.min(1, c.stab + (c.sp.stab - c.stab) * 0.015 + lr.range(-0.022, 0.022) - atWar * 0.01));
-        for (const oid of c.contacted) { const o = civs[oid]; if (o.alive) setRel(c, o, getRel(c, o) * 0.996 + lr.range(-0.025, 0.025)); }
+        c.stab = Math.max(0, Math.min(1, c.stab + (c.sp.stab - c.stab) * 0.015 + lr.range(-0.018, 0.018) - nWar * 0.002));
+        for (const oid of c.contacted) { const o = civs[oid]; if (o.alive) setRel(c, o, getRel(c, o) * 0.998 + lr.range(-0.012, 0.012)); }
         // 新的接触
-        const meet = new Map();
-        for (const x of c.territory) for (const m of adj[x]) { const oid = owner[m]; if (oid != null && oid !== c.id && !c.contacted.has(oid) && civs[oid].alive && !meet.has(oid)) meet.set(oid, x); }
-        for (const [oid, s] of meet) {
-          const o = civs[oid];
-          c.contacted.add(o.id); o.contacted.add(c.id); setRel(c, o, relInit(c, o));
-          contactEv[pk(c.id, o.id)] = lev({ type: 'contact', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: c.lastColony,
-            sum: `${c.polity()}与${o.polity()}在${lname(s)}星系首次接触。`,
-            trace: `两支舰队在${lname(s)}附近对峙后各自退开，留下一座新架设的联络信标，正交替播放${c.name}${c.sp.script}和${o.name}${o.sp.script}。` });
+        if (c.space) {
+          const meet = new Map();
+          for (const x of c.territory) for (const m of near2[x]) { const oid = owner[m]; if (oid != null && oid !== c.id && !c.contacted.has(oid) && civs[oid].alive && civs[oid].space && !meet.has(oid)) meet.set(oid, x); }
+          for (const [oid, s] of meet) {
+            const o = civs[oid];
+            c.contacted.add(o.id); o.contacted.add(c.id); setRel(c, o, relInit(c, o));
+            contactEv[pk(c.id, o.id)] = lev({ type: 'contact', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: c.lastColony,
+              sum: `${c.polity()}与${o.polity()}在${sysN(s)}星系首次接触。`,
+              trace: V([
+                `两支舰队在${sysN(s)}附近对峙后各自退开，留下一座新架设的联络信标，正交替播放${c.name}${c.sp.script}和${o.name}${o.sp.script}。`,
+                `${sysN(s)}外围，一艘${c.name}的勘测船和一艘${o.name}的巡逻艇正隔着安全距离互相扫描。双方都在反复发送同一串质数。`,
+              ]) });
+          }
         }
-        if (c.stab < 0.08) {
+        if (c.stab < 0.04) {
           const own = [];
-          const ce = lev({ type: 'collapse', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastNeg, own,
+          lev({ type: 'collapse', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: c.lastNeg, own,
             sum: `${c.polity()}崩溃了，各地殖民地相继失去联系。`,
-            trace: `${plName(c.home[0], c.home[1])}的通讯塔已经沉默，城市里只剩零星的灯光。最后几条广播是各地发出的求援信号。` });
+            trace: `${plName(c.cap[0], c.cap[1])}的通讯已经沉默，只剩零星的信号。最后几条广播是各地发出的求援。` });
           endCiv(c, '瓦解', own);
           continue;
         }
-        if (LD < c.nextDay || !lr.chance(0.45)) continue;
+        if (LD < c.nextDay) continue;
+        c.nextDay = LD + lr.int(300, 700);
         // 可选的行动及其权重
         const opts = [];
         const free = [];
-        for (const s of c.territory) for (const n of adj[s]) if (owner[n] == null && systems[n].planets.length && !free.includes(n)) free.push(n);
+        for (const s of c.territory) for (const m of adj[s]) if (owner[m] == null && systems[m].planets.length && !free.includes(m)) free.push(m);
         const ethCol = { 扩张: 1.8, 贸易: 1, 求知: 1, 信仰: 0.9, 隐修: 0.35 }[c.ethos];
-        if (c.space && free.length) opts.push(['colony', 3 * c.sp.col * ethCol]);
-        const foes = [...c.contacted].map((i) => civs[i]).filter((o) => o.alive && !fighting(c, o) && border(c, o).length && (getRel(c, o) < -0.1 || c.ethos === '扩张' || c.sp.hawk > 1.5));
-        if (foes.length) opts.push(['war', (c.ethos === '扩张' ? 2.2 : 1.2) * Math.sqrt(c.sp.hawk)]);
-        const friends = [...c.contacted].map((i) => civs[i]).filter((o) => o.alive && !c.trade.has(o.id) && !fighting(c, o) && getRel(c, o) > 0.2);
-        if (friends.length) opts.push(['trade', 1.6]);
-        if (c.sp.plague > 0) opts.push(['plague', 0.7 * c.sp.plague * (c.trade.size ? 1.6 : 1)]);
-        if (c.stab > 0.55) opts.push(['golden', 0.9 * c.sp.golden]);
-        if (c.ethos === '信仰') opts.push(['faith', 0.9]);
+        if (c.space && free.length) opts.push(['colony', 0.22 * c.sp.col * ethCol], ['survey', 0.45]);
+        const others = [...c.contacted].map((i) => civs[i]).filter((o) => o.alive && o.space && !lfighting(c, o));
+        const foes = c.overlord != null || !c.space ? [] : others.filter((o) => !c.allies.has(o.id) && o.overlord !== c.id && frontier(c, o).length && (getRel(c, o) < -0.25 || (c.ethos === '扩张' && getRel(c, o) < 0.1) || c.sp.hawk > 2));
+        if (foes.length) opts.push(['war', (c.ethos === '扩张' ? 0.35 : 0.18) * Math.sqrt(c.sp.hawk)]);
+        const tense = c.space ? others.filter((o) => getRel(c, o) < 0.15 && frontier(c, o).length) : [];
+        if (tense.length) opts.push(['incident', 1.1]);
+        if (c.space && others.length) opts.push(['summit', 0.6]);
+        if (c.sp.fig === 'name' || c.sp.fig === 'ord') opts.push(['succession', 0.4]);
+        const friends = c.space ? others.filter((o) => !c.trade.has(o.id) && getRel(c, o) > 0.2) : [];
+        if (friends.length) opts.push(['trade', 0.8]);
+        const pals = c.space ? others.filter((o) => c.trade.has(o.id) && !c.allies.has(o.id) && getRel(c, o) > 0.4 && c.overlord !== o.id && o.overlord !== c.id) : [];
+        if (pals.length) opts.push(['alliance', 0.5]);
+        if (c.sp.plague > 0) opts.push(['plague', 0.1 * c.sp.plague * (c.trade.size ? 1.6 : 1)]);
+        if (c.stab > 0.55) opts.push(['golden', 0.15 * c.sp.golden]);
+        if (c.ethos === '信仰') opts.push(['faith', 0.3]);
         const ruinSys = [...c.territory].filter((s) => [...ruins[s]].some((x) => x !== c.id && !c.dug.has(x)));
-        if (ruinSys.length) opts.push(['dig', 1.4]);
-        opts.push(['tech', 0.8 + (c.ethos === '求知' ? 0.8 : 0)]);
-        if (c.stab < 0.35) opts.push(['unrest', 3.5]);
-        if (c.tech >= c.sp.vanish) opts.push(['vanish', 0.25]);
+        if (ruinSys.length) opts.push(['dig', 0.8]);
+        if (c.space) opts.push(['tech', 0.25 + (c.ethos === '求知' ? 0.25 : 0)]);
+        if (c.stab < 0.3) opts.push(['unrest', 3]);
+        if (c.tech >= c.sp.vanish) opts.push(['vanish', 0.008]);
+        if (!opts.length) continue;
         const act = lr.weighted(opts);
-        c.nextDay = LD + lr.int(25, 85);
         if (act === 'colony') {
           const sid = lr.pick(free), pl = pickPlanet(sid, c.sp.prefer || 'solid');
           owner[sid] = c.id; c.territory.add(sid);
           const old = liveClaim(sid, c);
           c.lastColony = lev({ type: 'colony', civ: c.id, sys: sid, pl, cause: c.lastColony, own: [[sid, c.id]],
-            sum: old ? `${c.polity()}在 ${old} 星系建立了新的殖民地，并将它命名为 ${lname(sid)}。` : `${c.polity()}在${lname(sid)}星系建立了新的殖民地。`,
-            trace: `${plName(sid, pl)}上的定居点刚刚落成，${c.who}的运输船还停在着陆场上，部分建筑的外壳尚未封闭。` });
+            sum: old ? `${c.polity()}在 ${old} 星系建立了新的殖民地，并将它命名为 ${sysN(sid)}。` : `${c.polity()}在${sysN(sid)}星系建立了新的殖民地。`,
+            trace: V([
+              `${at(sid, pl)}的定居点刚刚落成，${c.who}的运输船还停在附近，部分设施的外壳尚未封闭。`,
+              `${at(sid, pl)}正在施工。${c.who}的先遣队只有几百个成员，物资却堆得很高，后续的船队显然已经在路上。`,
+              `${sysN(sid)}的导航信标是新装的，广播的是${c.name}${c.sp.script}。${at(sid, pl)}的第一批设施刚刚通电。`,
+            ]) });
         } else if (act === 'war') {
-          const o = lr.pick(foes), b = border(c, o), s = b[0][0];
+          const o = lr.pick(foes), b = frontier(c, o), s = b[0][0];
           if (c.trade.has(o.id)) { c.trade.delete(o.id); o.trade.delete(c.id); }
           const grievance = c.lastNeg != null && events[c.lastNeg].live ? c.lastNeg : contactEv[pk(c.id, o.id)];
           const we = lev({ type: 'war', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: grievance,
             sum: `${c.polity()}向${o.polity()}宣战。`,
-            trace: `${lname(s)}的边境哨站已经进入战备状态，通讯频道里反复播放着${c.name}${c.sp.script}写成的动员令。` });
-          lwars.push({ a: c.id, b: o.id, ev: we, end: LD + lr.int(60, 240), over: false });
+            trace: V([
+              `${sysN(s)}的边境哨站已经进入战备状态，通讯频道里反复播放着${c.name}${c.sp.script}写成的动员令。`,
+              `${sysN(s)}的民用航道在一夜之间关闭。${c.name}的舰队正在集结，识别信标全部切换成了加密模式。`,
+            ]) });
+          const w = { a: c.id, b: o.id, ev: we, end: LD + lr.int(90, 400), over: false, help: [] };
+          lwars.push(w);
           setRel(c, o, -0.6);
+          // 盟友与宗主参战
+          const helpers = [...o.allies];
+          if (o.overlord != null && !helpers.includes(o.overlord)) helpers.push(o.overlord);
+          for (const aid of helpers) {
+            const A = civs[aid];
+            if (!A.alive || aid === c.id || !A.space || !lr.chance(0.6)) continue;
+            w.help.push(aid); w.helpB = (w.helpB || 0) + 1; setRel(A, c, Math.min(getRel(A, c), -0.4));
+            LD += 5;
+            lev({ type: 'joinwar', civ: aid, other: o.id, sys: A.cap[0], pl: -1, cause: allyEv[pk(o.id, aid)] ?? we,
+              sum: `${A.polity()}宣布履行盟约，站在${o.polity()}一边参战。`,
+              trace: `${sysN(A.cap[0])}的船坞正在连夜整备舰队。${A.name}的公开广播引用了与${o.name}所订盟约的条文。` });
+            LD -= 5;
+          }
+        } else if (act === 'survey') {
+          const sid = lr.pick(free), pl = pickPlanet(sid);
+          lev({ type: 'survey', civ: c.id, sys: sid, pl: -1, cause: c.lastColony,
+            sum: `${c.polity()}向无主的${sysN(sid)}星系派出了勘测队。`,
+            trace: V([
+              `一艘${c.name}的勘测船正在${sysN(sid)}逐颗行星地测绘，沿途留下了一串中继浮标。`,
+              `${sysN(sid)}的外轨道上新布了一圈${c.name}的探测浮标，数据正不间断地传回${sysN(c.cap[0])}。`,
+            ]) });
+        } else if (act === 'incident') {
+          const o = lr.pick(tense), b = frontier(c, o), s = b[0][0];
+          setRel(c, o, getRel(c, o) - 0.14);
+          c.lastNeg = lev({ type: 'incident', civ: c.id, other: o.id, sys: s, pl: -1, cause: contactEv[pk(c.id, o.id)],
+            sum: V([`${c.polity()}与${o.polity()}的巡逻队在${sysN(s)}星系发生摩擦。`, `${c.polity()}扣押了一艘越界的${o.name}船只，${o.polity()}提出抗议。`]),
+            trace: V([
+              `${sysN(s)}的边境航道暂时关闭。一艘${o.name}的船被拖进了${c.name}的检查站，双方的外交频道都在占线。`,
+              `${sysN(s)}外围，两支巡逻队隔着很近的距离并行。公共频道里是两种语言的警告，交替重复。`,
+            ]) });
+        } else if (act === 'summit') {
+          const o = lr.pick(others);
+          setRel(c, o, getRel(c, o) + 0.12);
+          lev({ type: 'summit', civ: c.id, other: o.id, sys: c.cap[0], pl: c.cap[1], cause: contactEv[pk(c.id, o.id)],
+            sum: `${o.polity()}的使团抵达${plName(c.cap[0], c.cap[1])}，与${c.polity()}举行会谈。`,
+            trace: `${plName(c.cap[0], c.cap[1])}的轨道上停着一支${o.name}的使团船队，周围是${c.name}的礼仪护航。会谈的议程没有公开。` });
+        } else if (act === 'succession') {
+          const f = figure(c, 'ruler', PRESENT);
+          if (f) {
+            c.ruler = f;
+            deed(f, lev({ type: 'succession', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: null,
+              sum: c.sp.fig === 'ord' ? `${c.polity()}的新一代${c.sp.rulerT || '主脑'}开始主事，称${f.full}。` : `${f.name}成为${c.polity()}的新任${f.title}。`,
+              trace: `${plName(c.cap[0], c.cap[1])}正在举行交接仪式，${c.name}境内的公共频道都在转播。` }));
+          }
         } else if (act === 'trade') {
           const o = lr.pick(friends);
           c.trade.add(o.id); o.trade.add(c.id);
-          const b = border(c, o), s = b.length ? b[0][0] : c.home[0];
+          const b = frontier(c, o), s = b.length ? b[0][0] : c.cap[0];
           const te = lev({ type: 'trade', civ: c.id, other: o.id, sys: s, pl: pickPlanet(s), cause: contactEv[pk(c.id, o.id)],
             sum: `${c.polity()}与${o.polity()}签订了贸易协定。`,
-            trace: `${lname(s)}的轨道上新开了一座中转站，泊位上停着两种制式的货船，装卸作业日夜不停。` });
-          c.tradeEv = te; o.tradeEv = te;
+            trace: V([
+              `${sysN(s)}的轨道上新开了一座中转站，泊位上停着两种制式的货船，装卸作业日夜不停。`,
+              `${sysN(s)}的航道上多了一批${o.name}制式的货船。${c.name}的海关刚刚发布了第一版对照税则。`,
+            ]) });
+          c.tradeEv = te; o.tradeEv = te; tradeEvP[pk(c.id, o.id)] = te;
+        } else if (act === 'alliance') {
+          const o = lr.pick(pals);
+          c.allies.add(o.id); o.allies.add(c.id);
+          allyEv[pk(c.id, o.id)] = lev({ type: 'alliance', civ: c.id, other: o.id, sys: c.cap[0], pl: c.cap[1], cause: tradeEvP[pk(c.id, o.id)] ?? contactEv[pk(c.id, o.id)],
+            sum: `${c.polity()}与${o.polity()}缔结同盟。`,
+            trace: `${plName(c.cap[0], c.cap[1])}正在举行签约仪式。${o.name}的使团舰队停在高轨道上，两种识别信标并排广播。` });
+          setRel(c, o, getRel(c, o) + 0.15);
         } else if (act === 'plague') {
           const s = lr.pick([...c.territory]), fromTrade = c.trade.size && lr.chance(0.6);
-          c.stab -= 0.18;
+          c.stab -= 0.1;
           c.lastNeg = lev({ type: 'plague', civ: c.id, sys: s, pl: pickPlanet(s, 'hab'), cause: fromTrade ? c.tradeEv : null,
             sum: c.sp.plagueSum.replace('{P}', c.polity()) + (fromTrade ? '，最早出现在贸易港。' : '。'),
-            trace: `${lname(s)}正在实行隔离，所有船只都被要求停靠检疫站。` + (fromTrade ? '检疫官怀疑源头是一艘外国货船。' : '') });
+            trace: `${sysN(s)}正在实行隔离，所有船只都被要求停靠检疫站。` + (fromTrade ? '检疫官怀疑源头是一艘外国货船。' : '') });
         } else if (act === 'golden') {
           const s = lr.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
           c.stab += 0.06;
           lev({ type: 'golden', civ: c.id, sys: s, pl, cause: c.tradeEv ?? c.lastColony,
-            sum: `${c.polity()}在${lname(s)}落成了一座宏伟的纪念建筑。`,
-            trace: `${plName(s, pl)}上的新建筑刚刚揭幕，表面的${c.name}${c.sp.script}还很清晰，主题是「${c.culture[0]}」。` });
+            sum: `${c.polity()}在${sysN(s)}落成了一座宏伟的纪念建筑。`,
+            trace: `${at(s, pl)}的新建筑刚刚揭幕，表面的${c.name}${c.sp.script}还很清晰，主题是「${c.culture[0]}」。` });
         } else if (act === 'faith') {
           const s = lr.pick([...c.territory]), pl = pickPlanet(s, c.sp.prefer || 'solid');
           c.stab += 0.08;
           lev({ type: 'faith', civ: c.id, sys: s, pl, cause: c.lastNeg,
-            sum: `${c.polity()}兴起新的信仰运动，信众在${lname(s)}聚集。`,
-            trace: `大批朝圣者正涌向${plName(s, pl)}，临时营地沿着道路延伸了数公里。` });
+            sum: `${c.polity()}兴起新的信仰运动，信众在${sysN(s)}聚集。`,
+            trace: `大批朝圣者正涌向${plName(s, pl)}，临时营地沿着航道延伸出去很远。` });
         } else if (act === 'dig') {
           const s = lr.pick(ruinSys), old = civs[[...ruins[s]].find((x) => x !== c.id && !c.dug.has(x))];
           c.dug.add(old.id);
-          const ce = events.find((e) => e.civ === old.id && (e.type === 'collapse' || e.type === 'vanish'));
-          lev({ type: 'dig', civ: c.id, other: old.id, sys: s, pl: pickPlanet(s, 'solid'), cause: ce ? ce.id : null,
-            sum: `${c.who}在${lname(s)}开始发掘${old.who}的遗迹。`,
-            trace: `${lname(s)}上新开了一处考古工地，${c.who}的学者正在清理${old.name}${old.sp.script}。` });
+          lev({ type: 'dig', civ: c.id, other: old.id, sys: s, pl: pickPlanet(s, 'solid'), cause: old.endEv ?? null,
+            sum: `${c.who}在${sysN(s)}开始发掘${old.who}的遗迹。`,
+            trace: `${sysN(s)}新开了一处考古工地，${c.who}的学者正在清理${old.name}${old.sp.script}。` });
         } else if (act === 'tech') {
           const proj = lr.pick(PROJECTS); c.tech = Math.min(10, c.tech + 0.15);
-          lev({ type: 'tech', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.tradeEv ?? c.lastColony,
+          lev({ type: 'tech', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: c.tradeEv ?? c.lastColony,
             sum: `${c.polity()}建成了${proj}。`,
-            trace: `${plName(c.home[0], c.home[1])}附近，${proj}刚刚投入运行，周围还漂浮着施工平台。` });
+            trace: `${plName(c.cap[0], c.cap[1])}附近，${proj}刚刚投入运行，周围还漂浮着施工平台。` });
         } else if (act === 'unrest') {
-          const ue = lev({ type: 'unrest', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastNeg,
+          const ue = lev({ type: 'unrest', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: c.lastNeg,
             sum: `${c.polity()}爆发内乱。`, trace: '局势仍在发展。' + c.sp.unrest });
           c.lastNeg = ue;
-          if (c.territory.size >= 3 && lr.chance(0.4)) {
-            const hd = hops(c.home[0]);
-            const far = [...c.territory].filter((x) => x !== c.home[0]).sort((a, b) => hd[b] - hd[a]);
+          const hd2 = c.territory.size >= 3 ? hops(c.cap[0]) : null;
+          const far = hd2 ? [...c.territory].filter((x) => x !== c.cap[0] && systems[x].planets.length).sort((a, b) => hd2[b] - hd2[a]) : [];
+          if (far.length >= 2 && lr.chance(0.4)) {
             const take = far.slice(0, Math.max(1, Math.floor(far.length / 2)));
             const nhSys = take[0];
             let nhPl = systems[nhSys].planets.findIndex((p) => p.kind === 'rock' || p.kind === 'super');
-            if (nhPl < 0) nhPl = 0;
+            if (c.sp.prefer === 'gas' || nhPl < 0) nhPl = pickPlanet(nhSys, c.sp.prefer || 'solid');
             const oldName = c.polity();
             LD += 5;
             const nc = makeCiv([nhSys, nhPl], PRESENT, c, c.sp);
-            nc.founded = true; nc.space = true; nc.stab = 0.6; nc.alive0 = false; nc.bornDay = LD; nc.society0 = nc.society; nc.nextDay = LD + 60;
+            nc.founded = true; nc.space = true; nc.stab = 0.6; nc.alive0 = false; nc.bornDay = LD; nc.society0 = nc.society; nc.nextDay = LD + 200;
+            nc.territory.clear();
             for (const x of take) { c.territory.delete(x); nc.territory.add(x); owner[x] = nc.id; }
             nc.contacted.add(c.id); c.contacted.add(nc.id); setRel(c, nc, -0.4);
             nc.foundEv = lev({ type: 'schism', civ: nc.id, other: c.id, sys: nhSys, pl: nhPl, cause: ue, own: take.map((x) => [x, nc.id]),
               sum: `${oldName}的边远星系宣布独立，成立${nc.polity()}。`,
-              trace: `${lname(nhSys)}的街头挂满了新旗帜。独立宣言刚刚发布，用的是${c.name}${c.sp.script}的一种变体。` });
+              trace: `${sysN(nhSys)}到处是新的旗号。独立宣言刚刚发布，用的是${c.name}${c.sp.script}的一种变体。` });
             nc.lastColony = nc.foundEv; contactEv[pk(c.id, nc.id)] = nc.foundEv;
             LD -= 5; c.stab += 0.2;
           } else if (lr.chance(0.5)) {
             const old = c.polity();
             c.society = lr.pick(c.sp.pol.filter((k) => k !== c.society));
             LD += 5;
-            lev({ type: 'coup', civ: c.id, sys: c.home[0], pl: c.home[1], cause: ue, society: c.society,
+            lev({ type: 'coup', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: ue, society: c.society,
               sum: `${old}被推翻，${c.polity()}宣告成立。`,
-              trace: `${plName(c.home[0], c.home[1])}的政府建筑换上了新的徽记，旧政权的标识被连夜拆除。` });
+              trace: `${plName(c.cap[0], c.cap[1])}的官方设施换上了新的徽记，旧政权的标识被连夜拆除。` });
             LD -= 5; c.stab += 0.25;
-          }
+          } else c.stab += 0.12;
         } else if (act === 'vanish') {
           const own = [];
-          lev({ type: 'vanish', civ: c.id, sys: c.home[0], pl: c.home[1], cause: c.lastColony, own,
+          lev({ type: 'vanish', civ: c.id, sys: c.cap[0], pl: c.cap[1], cause: c.lastColony, own,
             sum: `${c.polity()}在几天之内停止了一切通讯。`,
             trace: '所有设施仍在运转，但找不到任何居民。最后一条公开广播只有一行数学公式。' });
           endCiv(c, '消失', own);
@@ -1212,46 +2127,50 @@ const Gen = (() => {
         if (w.over) continue;
         const A = civs[w.a], B = civs[w.b];
         if (!A.alive || !B.alive) { w.over = true; continue; }
-        const b = border(A, B);
-        if (b.length && lr.chance(0.14)) {
+        const b = frontier(A, B);
+        if (b.length && lr.chance(0.05)) {
           const [s] = lr.pick(b), pl = pickPlanet(s);
           const be = lev({ type: 'battle', civ: w.a, other: w.b, sys: s, pl, cause: w.ev,
-            sum: `${A.who}与${B.who}的舰队在${lname(s)}星系交火。`,
-            trace: `${plName(s, pl)}附近的残骸还在发热，碎片正沿着轨道散开。救援船在残骸之间搜寻幸存者。` });
-          A.lastNeg = be; B.lastNeg = be; A.stab -= 0.04; B.stab -= 0.04;
+            sum: `${A.who}与${B.who}的舰队在${sysN(s)}星系交火。`,
+            trace: V([
+              `${plName(s, pl)}附近的残骸还在发热，碎片正沿着轨道散开。救援船在残骸之间搜寻幸存者。`,
+              `${plName(s, pl)}的轨道上，两支舰队刚刚脱离接触。公共频道里，双方都在呼叫各自失联的舰只。`,
+            ]) });
+          A.lastNeg = be; B.lastNeg = be; A.stab -= 0.03; B.stab -= 0.03;
         }
-        if (LD >= w.end) {
-          w.over = true;
-          const str = (c) => c.tech * (1 + c.territory.size * 0.3) * (0.5 + c.stab) * lr.range(0.7, 1.3);
-          const sa = str(A), sb = str(B);
-          const [win, lose] = sa > sb ? [A, B] : [B, A];
-          const take = [...new Set(border(win, lose).map((x) => x[1]))].slice(0, lr.int(1, 2));
-          if (take.length && Math.max(sa, sb) / Math.min(sa, sb) > 1.2) {
-            const own = take.map((x) => [x, win.id]);
-            for (const x of take) { lose.territory.delete(x); win.territory.add(x); owner[x] = win.id; ruins[x].add(lose.id); }
-            const s = take[0];
-            const ce = lev({ type: 'conquest', civ: win.id, other: lose.id, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev, own,
-              sum: `${win.polity()}攻占了${take.map((t) => lname(t)).join('、')}，${lose.polity()}被迫后撤。`,
-              trace: `${lname(s)}的旗帜和标识刚刚被替换，${lose.who}留下的设施上有明显的弹痕。` });
-            lose.stab -= take.includes(lose.home[0]) ? 0.3 : 0.12; lose.lastNeg = ce;
-            if (!lose.territory.size || take.includes(lose.home[0])) {
-              const own2 = [];
-              LD += 5;
-              lev({ type: 'collapse', civ: lose.id, sys: lose.home[0], pl: lose.home[1], cause: ce, own: own2,
-                sum: `${lose.polity()}失去了母星，作为独立文明不复存在。`,
-                trace: `${plName(lose.home[0], lose.home[1])}上，${win.who}的部队正在接管${lose.who}的城市。` });
-              for (const x of lose.territory) { owner[x] = win.id; win.territory.add(x); own2.push([x, win.id]); }
-              lose.territory.clear();
-              endCiv(lose, '被征服', own2);
-              LD -= 5;
-            }
-          } else {
-            const s = border(A, B)[0]?.[0] ?? A.home[0];
-            const pe = lev({ type: 'peace', civ: w.a, other: w.b, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
-              sum: `${A.polity()}与${B.polity()}宣布停火。`,
-              trace: `${lname(s)}的前线阵地正在撤离，双方的舰船保持着安全距离。` });
-            setRel(A, B, -0.2); A.lastNeg = pe; B.lastNeg = pe;
+        if (LD < w.end) continue;
+        w.over = true;
+        const str = (c) => c.tech * (1 + c.territory.size * 0.3) * (0.5 + c.stab) * lr.range(0.7, 1.3);
+        const sa = str(A), sb = str(B) + w.help.reduce((t, id) => t + (civs[id].alive ? str(civs[id]) * 0.5 : 0), 0);
+        const [win, lose] = sa > sb ? [A, B] : [B, A];
+        const take = [...new Set(frontier(win, lose).map((x) => x[1]))].slice(0, lr.int(1, 2));
+        if (take.length && Math.max(sa, sb) / Math.min(sa, sb) > 1.25) {
+          const own = take.map((x) => [x, win.id]);
+          for (const x of take) { lose.territory.delete(x); win.territory.add(x); owner[x] = win.id; ruins[x].add(lose.id); }
+          const s = take[0];
+          const capLost = take.includes(lose.cap[0]);
+          const ce = lev({ type: 'conquest', civ: win.id, other: lose.id, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev, own,
+            sum: `${win.polity()}攻占了${take.map((t) => sysN(t)).join('、')}，${lose.polity()}被迫后撤。`,
+            trace: `${sysN(s)}的旗号和标识刚刚被替换，${lose.who}留下的设施上有明显的弹痕。` });
+          lose.stab -= capLost ? 0.3 : 0.12; lose.lastNeg = ce;
+          if (lose.territory.size && capLost) { const s2 = [...lose.territory][0]; lose.cap = [s2, pickPlanet(s2, lose.sp.prefer || 'solid')]; }
+          if (!lose.territory.size) {
+            const own2 = [];
+            LD += 5;
+            lev({ type: 'collapse', civ: lose.id, sys: lose.cap[0], pl: lose.cap[1], cause: ce, own: own2,
+              sum: `${lose.polity()}失去了最后的领土，作为独立文明不复存在。`,
+              trace: `${plName(lose.cap[0], lose.cap[1])}，${win.who}的部队正在接管${lose.who}的设施。` });
+            for (const x of lose.territory) { owner[x] = win.id; win.territory.add(x); own2.push([x, win.id]); }
+            lose.territory.clear();
+            endCiv(lose, '被征服', own2);
+            LD -= 5;
           }
+        } else {
+          const s = frontier(A, B)[0]?.[0] ?? A.cap[0];
+          const pe = lev({ type: 'peace', civ: w.a, other: w.b, sys: s, pl: pickPlanet(s, 'solid'), cause: w.ev,
+            sum: `${A.polity()}与${B.polity()}宣布停火。`,
+            trace: `${sysN(s)}的前线阵地正在撤离，双方的舰船保持着安全距离。` });
+          setRel(A, B, -0.2); A.lastNeg = pe; B.lastNeg = pe;
         }
       }
     }
@@ -1260,13 +2179,14 @@ const Gen = (() => {
     for (const c of civs) {
       c.territory = [...c.territory];
       c.contacted = [...c.contacted];
-      delete c.trade; delete c.dug;
+      c.allies = [...c.allies];
+      for (const k of ['trade', 'dug', 'figs', 'figNames', 'missioned', 'spied', 'known', 'watching', 'ruler', 'relic', 'relicLost']) delete c[k];
     }
     const planetsCount = systems.reduce((a, s) => a + s.planets.length, 0);
     const habCount = systems.reduce((a, s) => a + s.planets.filter((p) => p.hab).length, 0);
     return {
-      seed, W, H, systems, lanes, adj, civs, events, present: PRESENT, start, owner: baseOwner, histCount, liveDays: LIVE_DAYS,
-      stats: { systems: systems.length, planets: planetsCount, habitable: habCount, events: histCount, civs: civs.filter((c) => c.bornDay == null).length, ms: (typeof performance !== 'undefined' ? performance : Date).now() - t0 },
+      seed, W, H, systems, lanes, adj, civs, events, figures, wonders, relics, present: PRESENT, start, owner: baseOwner, histCount, liveDays: LIVE_DAYS,
+      stats: { systems: systems.length, planets: planetsCount, habitable: habCount, events: histCount, civs: civs.filter((c) => c.bornDay == null).length, figures: figures.length, ms: (typeof performance !== 'undefined' ? performance : Date).now() - t0 },
       plName, ROMAN, STARS, sp, KIND_NAME, ETHOS_DESC, galaxy: { CX, CY, GR, density }, SPECIES,
     };
   }
@@ -1300,7 +2220,7 @@ if (typeof module !== 'undefined') module.exports = Gen;
   const evDate = (e) => `纪元 ${W.present + Math.floor(e.day / YEAR_DAYS)} 年第 ${(e.day % YEAR_DAYS) + 1} 天`;
 
   // ---- 一整个螺旋星系：所有星区共享同一段历史 ----
-  const GSAVE = 'yxz-g1:', LAST = 'yxz-g1-last';
+  const GSAVE = 'yxz-g2:', LAST = 'yxz-g1-last'; // g2：历史推演改版后，旧存档里的记录编号不再对应
   function load(seed, fresh) {
     $('#loading').hidden = false;
     $('#seed').value = seed;
@@ -1535,6 +2455,7 @@ if (typeof module !== 'undefined') module.exports = Gen;
     let h = `<div class="eyebrow">恒星系 · 星区 ${secName(s)} · ${(s.x * 0.5).toFixed(0)}, ${(s.y * 0.5).toFixed(0)} pc</div>
       <div class="sysname"><span class="sicon">${starSVG(star, 30)}</span>${nameOf(sid)}${here ? '<span class="chip here">当前位置</span>' : vis ? '<span class="chip">已探索</span>' : '<span class="chip">未探索</span>'}</div>
       <div class="starline">${star.name} · ${star.cls}${star.temp ? ` · ${star.temp.toLocaleString('en')} K` : ''} · 光度 ${s.lum < 0.001 ? '< 0.001' : s.lum < 0.1 ? s.lum.toFixed(3) : s.lum.toFixed(2)} L☉</div>`;
+    if (s.nova != null) h += `<p class="note">这是一处超新星遗迹。按气壳的膨胀速度推算，爆发发生在约纪元 ${Math.round(s.nova / 50) * 50} 年，此前这里是一颗${W.STARS[s.type0].name}。</p>`;
     if (!vis) {
       const sig = known(sid) ? unsurveyed(sid).length : 0;
       h += `<p class="note">尚未抵达。${sig ? `远程扫描在这里检测到 <b style="color:var(--brass)">${sig} 处人工痕迹</b>，抵达后可以勘测。` : known(sid) ? '远程扫描没有发现人工痕迹，但近距离勘察可能会有不同结果。' : '它在扫描范围之外，只能确认恒星类型。'}航程约 ${travelDays(st.cur, sid)} 天。</p>`;
@@ -1562,10 +2483,12 @@ if (typeof module !== 'undefined') module.exports = Gen;
     if (sysKeys[sid].has(sid + ':-1')) rows.push({ p: null, key: sid + ':-1' });
     for (const { p, key } of rows) {
       const evs = atKey[key] || [], done = st.surveyed.includes(key);
+      const won = done ? evs.map((id) => W.events[id]).filter((e) => e.type === 'wonder').map((e) => W.wonders[e.wonder]) : [];
+      const sacked = (w) => W.events.some((e) => e.type === 'sack' && e.wonder === w.id && happened(e));
       h += `<li class="planet"><div class="num">${p ? planetSVG(p) : debrisSVG()}<span>${p ? W.ROMAN[p.i] : ''}</span></div><div>`;
       if (p) {
-        h += `<div class="ttl">${p.climate}<span class="kind">${W.KIND_NAME[p.kind]}</span>${p.hab ? '<span class="tag hab">宜居</span>' : ''}${evs.length && !done ? '<span class="tag sig">◆ 人工痕迹</span>' : ''}</div>
-          <div class="data">轨道 ${p.orbit.toFixed(2)} AU · 表面 ${tempC(p.T)} °C · 大气 ${p.atmo}${p.moons ? ' · 卫星 ' + p.moons : ''}</div>`;
+        h += `<div class="ttl">${p.climate}<span class="kind">${W.KIND_NAME[p.kind]}</span>${p.hab ? '<span class="tag hab">宜居</span>' : ''}${evs.length && !done ? '<span class="tag sig">◆ 人工痕迹</span>' : ''}${won.map((w) => `<span class="tag won">${sacked(w) ? '奇观遗址' : '奇观'} · ${w.name}</span>`).join('')}</div>
+          <div class="data">轨道 ${p.orbit.toFixed(2)} AU · 表面 ${tempC(p.T)} °C · 大气 ${p.atmo}${p.moons ? ' · 卫星 ' + p.moons : ''}${p.was ? ` · 地层显示这里曾是${p.was}` : ''}</div>`;
       } else {
         h += `<div class="ttl">星系深空<span class="tag sig">◆ 人工痕迹</span></div><div class="data">游离于行星轨道之外的人造物</div>`;
       }
@@ -1626,7 +2549,7 @@ if (typeof module !== 'undefined') module.exports = Gen;
       const c = civOf(cid), evs = civEvents(cid), got = evs.filter((e) => disc.has(e.id));
       const types = new Set(got.map((e) => e.type));
       const arch = st.archived.includes(cid);
-      const foundKnown = got.some((e) => (e.type === 'found' || e.type === 'schism') && e.civ === cid) || arch;
+      const foundKnown = got.some((e) => (e.type === 'found' || e.type === 'schism' || e.type === 'remnant') && e.civ === cid) || arch;
       const end = got.find((e) => e.civ === cid && (e.type === 'collapse' || e.type === 'vanish'));
       const alive = aliveNow(c);
       const seenAlive = alive && (arch || got.some((e) => e.live) || st.visited.some((v) => ownerNow[v] === cid));
@@ -1638,6 +2561,8 @@ if (typeof module !== 'undefined') module.exports = Gen;
       else fate = unk('不明');
       const span0 = Math.min(...got.map((e) => e.y)), span1 = Math.max(...got.map((e) => e.y));
       const spKnown = foundKnown || got.length >= 2;
+      const figIds = new Set(); for (const e of got) for (const f of e.figs || []) if (W.figures[f].civ === cid) figIds.add(f);
+      const figs = [...figIds].map((f) => W.figures[f]).sort((a, b) => a.y0 - b.y0);
       h += `<div class="civ" style="--c:${c.color}"><h3>${c.who}${spKnown ? `<span class="sp">${c.species}</span>` : ''}</h3><dl>
         <dt>物种</dt>${spKnown ? `<dd>${c.species}<span class="sub">${c.sp.desc}</span></dd>` : unk()}
         <dt>${c.parent != null ? '起源' : '母星'}</dt>${foundKnown ? `<dd>${c.parent != null ? `自${civOf(c.parent).who}分离 · ${home}` : home}</dd>` : unk()}
@@ -1645,6 +2570,7 @@ if (typeof module !== 'undefined') module.exports = Gen;
         <dt>文化</dt>${got.length >= 4 || arch ? `<dd>${c.culture.join('；')}</dd>` : unk('需要更多记录')}
         <dt>政体</dt>${got.length >= 3 || arch ? `<dd>${polityNow(c)}${alive ? '' : '（末期）'}</dd>` : unk('需要更多记录')}
         <dt>取向</dt>${got.length >= 5 || arch ? `<dd>${c.ethos} · ${W.ETHOS_DESC[c.ethos]}</dd>` : unk('需要更多记录')}
+        <dt>人物</dt>${figs.length ? `<dd>${figs.slice(0, 6).map((f) => `<span class="fig">${f.full}<small>约 ${Math.round(f.y0 / 10) * 10} 年</small></span>`).join('')}${figs.length > 6 ? `<span class="sub">另有 ${figs.length - 6} 个名字见于记录</span>` : ''}</dd>` : unk(c.sp.fig ? '记录中尚未出现名字' : '这个物种不为个体留名')}
         <dt>现状</dt>${fate}
       </dl>
       <div class="track"><div class="axis"></div><div class="span" style="left:${span0 / TMAX * 100}%;width:${Math.max(0.6, (span1 - span0) / TMAX * 100)}%"></div>
@@ -1660,7 +2586,7 @@ if (typeof module !== 'undefined') module.exports = Gen;
     const seen = new Map();
     for (const cid of knownCivs()) {
       const c = civOf(cid), got = civEvents(cid).filter((e) => disc.has(e.id));
-      const ok = st.archived.includes(cid) || got.length >= 2 || got.some((e) => (e.type === 'found' || e.type === 'schism') && e.civ === cid);
+      const ok = st.archived.includes(cid) || got.length >= 2 || got.some((e) => (e.type === 'found' || e.type === 'schism' || e.type === 'remnant') && e.civ === cid);
       if (ok) { const L = seen.get(c.sp.id) || []; L.push(cid); seen.set(c.sp.id, L); }
     }
     const inGalaxy = new Set(W.civs.map((c) => c.sp.id));
@@ -1682,7 +2608,8 @@ if (typeof module !== 'undefined') module.exports = Gen;
       <div class="stats">
         <div><b>${s.systems}</b><span>恒星系</span></div><div><b>${s.planets}</b><span>行星</span></div>
         <div><b>${s.habitable}</b><span>宜居行星</span></div><div><b>${s.civs}</b><span>文明（含分裂）</span></div>
-        <div><b>${s.events}</b><span>历史事件</span></div><div><b>${s.ms.toFixed(0)} ms</b><span>生成并推演 ${W.present} 年</span></div>
+        <div><b>${s.events}</b><span>历史事件</span></div><div><b>${s.figures}</b><span>留名的人物</span></div>
+        <div><b>${W.wonders.length}</b><span>奇观</span></div><div><b>${s.ms.toFixed(0)} ms</b><span>生成并推演 ${W.present} 年</span></div>
       </div>
       <h2>一整个星系</h2>
       <p>宇宙是一个完整的螺旋星系：约一千个恒星系沿着几条旋臂分布，臂间稀疏，中心是超大质量黑洞。所有文明在同一张图上推演同一段历史，会越过星区边界扩张、接触和交战。星区（A1 到 F6）只是方便定位的网格编号。拖动星图可以平移，滚轮或双指可以缩放，右下角的按钮可以回到当前位置或纵览全星系，左上角的小地图点一下就能把视野移过去。</p>
@@ -1698,10 +2625,18 @@ if (typeof module !== 'undefined') module.exports = Gen;
       <p>物种共有 ${W.SPECIES.length} 类，取材于科幻和奇幻里常见的原型，名字与细节都是原创的：类人种族、精灵、矮人、兽人、猫裔、翼族，虫族与吞噬虫群，金属生命、数字意识、硅基晶族，菌丝网络、光合林民，深海种族、智慧头足类、覆盖整颗行星的单一海洋意识，冰原种族、潮汐锁定行星上的昏线族，气态巨行星里的浮游族和无实体意识，栖居在恒星日冕中的恒星之灵，只在死亡恒星旁繁衍的辐食族，寄居宿主体内的共生体，能模仿一切的拟形族，以及早在多数种族诞生之前就已消失的上古先行者。</p>
       <p>每个物种只会诞生在特定环境里，有的还挑恒星：光合族需要明亮的恒星，昏线族只出现在红矮星和橙矮星周围的潮汐锁定行星上，辐食族只在脉冲星、白矮星和黑洞附近。物种也影响历史：兽人、龙族和吞噬虫群好战，猫裔和拟形族更容易与人交好，数字意识和恒星之灵不受瘟疫影响、科技发展快，也更早从记录中消失；上古先行者总是最早出现，以很高的科技起步。</p>
       <h2>历史是推演出来的</h2>
-      <p>每个文明有科技、稳定度、领土和对外关系。时间以 50 年为一步推进，每一步检查哪些事件满足触发条件：领土相邻会产生接触，关系恶化会引发战争，贸易航线会带来瘟疫，稳定度过低会导致内乱、政变、分裂或瓦解。</p>
+      <p>每个文明有科技、稳定度、领土和对外关系。时间以 50 年为一步推进，每一步检查哪些事件满足触发条件：探测范围重叠会产生接触，关系恶化会引发战争，贸易航线会带来瘟疫，稳定度过低会导致内乱、政变、分裂或瓦解。</p>
+      <p>多数文明诞生在别的文明附近，所以星系里会形成几个彼此纠缠的区域，也总有几个文明独自发展了很久。约三成文明是后来者：它们还没有飞船的时候，邻居可能已经在轨道上了。先到的一方按自己的取向行事，求知和隐修的只在暗处观察，贸易和信仰的带来技术，扩张的直接收为附庸。</p>
+      <p>文明之间会通商、结盟、传教、窃取技术。开战时，盟友和宗主会被卷进来，也可能临阵背约；战败的一方可能割地，可能称臣，称臣的日后又可能起兵。每场战争都有名字。</p>
+      <p>殖民地各有用途：定居点、矿场、采集站、转运港、观测站、边境要塞、隐修地、流放地、瘟疫后的安置点。用途由当时的处境决定，所以它的起因也不同：要塞是因为邻居，流放地是因为政变，矿场是因为本土枯竭。</p>
       <p>事件发生时会记下它的起因。你在编年史里看到的「起因」链接，就是推演时真实存在的因果，而不是事后拼接的文字。</p>
+      <h2>人物、奇观与圣物</h2>
+      <p>君主、统帅、先知和学者会留下名字，名字出自各自文明的语言。寿命按物种计算：精灵的君主在位几百年，龙王上千年；虫族只记母后的代数，金属生命和数字意识用编号；菌丝网络、行星之海这样的物种不为个体留名。一个人物可能出现在好几条记录里，墓志上列着他做过的事。</p>
+      <p>繁荣的文明会建造奇观。奇观所在的星系被攻占时，它可能毁于战火，也可能换了主人。圣物会被供奉、被夺走、被陈列在征服者的都城，失主会为它再次开战；持有它的文明瓦解后，它留在废墟里，等后来者挖出来。</p>
+      <h2>天灾</h2>
+      <p>蓝白巨星可能爆发为超新星，留下脉冲星或黑洞，剥去周围星系的地表；栖居在那颗恒星里的文明会随它一同消亡。红矮星的耀斑会毁掉殖民地，小天体撞击会让宜居的行星变成冻原，过度开采的母星可能失去原有的气候，逼得文明迁都。行星现在的样子未必是它原来的样子，地层里留着记录。</p>
       <h2>你看到的只是碎片</h2>
-      <p>历史推演到纪元 ${W.present} 年为止，你的探索从这一年的第 1 天开始。仍然存续的文明不会停下：生成星域时，它们的未来十年也以 10 天为一步推演好了，你的日期走到哪一天，那一天之前的事就真的发生了。他们会殖民（并给新星系命名）、开战、签约、分裂，也可能崩溃。发生在你扫描范围内的事件，以及你查阅过档案的文明的消息，会以「截获通讯」的形式进入编年史；其余的要靠你去现场勘测。每次航行按距离消耗天数，勘测一处遗迹 2 天，查阅档案 1 天，顶栏会显示当前日期，编年史里的「多少年前」也按当前日期计算。</p>
+      <p>历史推演到纪元 ${W.present} 年为止，你的探索从这一年的第 1 天开始。仍然存续的文明不会停下：生成星域时，它们的未来十年也以 10 天为一步推演好了，你的日期走到哪一天，那一天之前的事就真的发生了。十年相对于三千年只是一瞬，所以这段时间里多是小事：勘测、会谈、边境摩擦、权力交接；殖民（并给新星系命名）、开战、结盟、分裂和崩溃也会发生，只是少得多。发生在你扫描范围内的事件，以及你查阅过档案的文明的消息，会以「截获通讯」的形式进入编年史；其余的要靠你去现场勘测。每次航行按距离消耗天数，勘测一处遗迹 2 天，查阅档案 1 天，顶栏会显示当前日期，编年史里的「多少年前」也按当前日期计算。</p>
       <p>全部历史在生成时就已确定，但每条记录只留在一个地点。你的工作是从遗迹里把它们找回来，并把起因与结果对上。</p>
     </div>`;
   }
